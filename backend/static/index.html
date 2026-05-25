@@ -136,10 +136,6 @@ body{font-family:"Microsoft YaHei",sans-serif;background:linear-gradient(180deg,
   <div class="human-panel">
     <!-- 形象切换栏 -->
     <div class="avatar-switcher">
-      <span class="avatar-switcher-label">形象:</span>
-      <select id="avatarSelect">
-        <option value="">加载中...</option>
-      </select>
       <a href="/static/avatar-manage.html" class="btn-manage" title="管理形象">管理</a>
     </div>
 
@@ -228,16 +224,6 @@ async function loadModelsConfig(){
     var data=await res.json();
     modelsConfig=data.models||[];
 
-    // 填充下拉框
-    var sel=document.getElementById('avatarSelect');
-    sel.innerHTML='';
-    modelsConfig.forEach(function(m){
-      var opt=document.createElement('option');
-      opt.value=m.id;opt.textContent=m.name;
-      if(m.id===currentModelId)opt.selected=true;
-      sel.appendChild(opt);
-    });
-
     // 加载当前模型
     var current=modelsConfig.find(function(m){return m.id===currentModelId});
     if(!current&&modelsConfig.length>0){current=modelsConfig[0];currentModelId=current.id;}
@@ -253,7 +239,6 @@ async function loadModelsConfig(){
     }
   }catch(e){
     console.error('加载模型配置失败:',e);
-    document.getElementById('avatarSelect').innerHTML='<option value="">加载失败</option>';
     restoreSVG();
   }
 }
@@ -307,27 +292,6 @@ function restoreSVG(){
     </div>`;
   document.getElementById('nameDisplay').style.display='none';
 }
-
-// ===== 形象切换 =====
-document.getElementById('avatarSelect').addEventListener('change', async function(){
-  var id=this.value;
-  var model=modelsConfig.find(function(m){return m.id===id});
-  if(!model)return;
-
-  currentModelId=id;
-  localStorage.setItem('selectedModelId',id);
-
-  // 同步音色
-  if(model.voice){
-    currentVoice = model.voice;
-    try { await fetch('/api/config/set-voice?voice_id='+model.voice, {method:'POST'}); } catch(e) {}
-  } else {
-    currentVoice = 'zh-CN-XiaoxiaoNeural';
-  }
-
-  await loadLive2DModel(model);
-  showToast('已切换为: '+model.name);
-});
 
 // ===== 发送消息 =====
 async function sendMessage(){
