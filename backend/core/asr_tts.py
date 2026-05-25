@@ -23,7 +23,10 @@ class TTSService:
         self.voice = "zh-CN-XiaoxiaoNeural"
         print("✅ Edge TTS 就绪 (Xiaoxiao)")
     
-    def synthesize(self, text, output_path="output.wav"):
+    def synthesize(self, text, output_path="output.wav", voice=None):
+        # 使用传入的音色或默认音色
+        actual_voice = voice or self.voice
+        
         # 确保输出路径是绝对路径，避免相对路径问题
         if not os.path.isabs(output_path):
             output_path = os.path.join(os.getcwd(), output_path)
@@ -33,7 +36,7 @@ class TTSService:
         try:
             subprocess.run([
                 'edge-tts',
-                '--voice', self.voice,
+                '--voice', actual_voice,
                 '--text', text,
                 '--write-media', output_path
             ], check=True, capture_output=True)

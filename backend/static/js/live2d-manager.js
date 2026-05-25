@@ -260,7 +260,16 @@ class Live2DManager {
             const coreModel = this.model.internalModel.coreModel;
             const origUpdate = coreModel.update.bind(coreModel);
 
+            // 检测可用的参数名（不同模型可能使用不同的参数名）
+            this._detectMouthParamName(coreModel);
+
+            // 调试：检查 coreModel 是否有 setParamFloat 方法
+            console.log('[Live2DManager] coreModel 方法:', Object.keys(coreModel).filter(k => typeof coreModel[k] === 'function'));
+            
+            let frameCount = 0;
             coreModel.update = (...args) => {
+                frameCount++;
+                
                 // 口型同步 - 平滑插值
                 if (this.isSpeaking) {
                     const rawVolume = this.currentVolume < 0.02 ? 0 : this.currentVolume;
@@ -275,16 +284,55 @@ class Live2DManager {
                     this.smoothedVolume *= 0.85; // 平滑关闭
                 }
 
-                // 设置嘴巴张开参数
+                // 设置嘴巴张开参数（尝试多种可能的参数名）
                 try {
                     const mouthValue = Math.max(0, Math.min(1, this.smoothedVolume));
-                    coreModel.setParamFloat(this.PARAM_MOUTH_OPEN_Y, mouthValue);
+                    const paramNames = ['PARAM_MOUTH_OPEN_Y', 'MouthOpenY', 'MOUTH_OPEN', 'mouthOpen', 'ParamMouthOpenY'];
+                    let success = false;
+                    for (const name of paramNames) {
+                        try {
+                            coreModel.setParamFloat(name, mouthValue);
+                            success = true;
+                            break;
+                        } catch (e) { /* 尝试下一个参数名 */ }
+                    }
+                    
+                    // 调试：每30帧输出一次口型值
+                    if (frameCount % 30 === 0) {
+                        console.debug('[Live2DManager] 更新帧:', frameCount, '口型值:', mouthValue, '音量:', this.currentVolume, 'isSpeaking:', this.isSpeaking);
+                    }
+                    
+                    if (!success && this.isSpeaking) {
+                        console.warn('[Live2DManager] 未能设置口型参数');
+                    }
                 } catch (e) { /* 参数不存在则跳过 */ }
 
                 origUpdate(...args);
             };
+            
+            console.log('[Live2DManager] 口型同步已注入');
         } catch (e) {
             console.warn('[Live2DManager] 口型同步注入失败:', e);
+        }
+    }
+
+    /**
+     * 检测模型支持的口型参数名
+     */
+    _detectMouthParamName(coreModel) {
+        try {
+            const paramNames = ['PARAM_MOUTH_OPEN_Y', 'MouthOpenY', 'MOUTH_OPEN', 'mouthOpen'];
+            for (const name of paramNames) {
+                try {
+                    coreModel.getParamFloat(name);
+                    console.log(`[Live2DManager] 检测到口型参数: ${name}`);
+                    this.PARAM_MOUTH_OPEN_Y = name;
+                    return;
+                } catch (e) { /* 尝试下一个 */ }
+            }
+            console.warn('[Live2DManager] 未检测到口型参数');
+        } catch (e) {
+            console.warn('[Live2DManager] 参数检测失败:', e);
         }
     }
 
@@ -445,6 +493,9 @@ class Live2DManager {
     startSpeaking() {
         this.isSpeaking = true;
         this.smoothedVolume = 0;
+        this._volumeLogCount = 0;
+        
+        console.log('[Live2DManager] 开始说话，isSpeaking:', this.isSpeaking, '模型:', this.currentModelId);
 
         // 说话时播放解释表情
         if (this.currentExpression === 'neutral' || !this.currentExpression) {
@@ -535,27 +586,40 @@ class Live2DManager {
         try {
             if (!this.audioContext) {
                 this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                console.log('[Live2DManager] 创建 AudioContext:', this.audioContext.state);
             }
 
             if (this.audioContext.state === 'suspended') {
-                this.audioContext.resume();
+                this.audioContext.resume().then(() => {
+                    console.log('[Live2DManager] AudioContext 已恢复:', this.audioContext.state);
+                }).catch(e => {
+                    console.warn('[Live2DManager] AudioContext 恢复失败:', e);
+                });
             }
+            
+            console.log('[Live2DManager] AudioContext 状态:', this.audioContext.state);
 
-            // 避免重复创建 source
-            if (!this.analyser) {
-                this.analyser = this.audioContext.createAnalyser();
-                this.analyser.fftSize = 256;
-                this.analyser.smoothingTimeConstant = 0.8;
+            // 创建新的 analyser（每次都创建新的，避免缓存问题）
+            if (this.analyser) {
+                try { this.analyser.disconnect(); } catch (e) {}
             }
+            this.analyser = this.audioContext.createAnalyser();
+            this.analyser.fftSize = 256;
+            this.analyser.smoothingTimeConstant = 0.8;
 
-            if (!this.audioSource) {
-                this.audioSource = this.audioContext.createMediaElementSource(audioElement);
-                this.audioSource.connect(this.analyser);
-                this.analyser.connect(this.audioContext.destination);
+            // 创建新的 audioSource 并连接到新的 analyser
+            if (this.audioSource) {
+                try { this.audioSource.disconnect(); } catch (e) {}
             }
+            this.audioSource = this.audioContext.createMediaElementSource(audioElement);
+            this.audioSource.connect(this.analyser);
+            this.analyser.connect(this.audioContext.destination);
+            
+            console.log('[Live2DManager] 音频源已连接到分析器');
 
             // 开始音量监测
             this._startVolumeMonitoring();
+            console.log('[Live2DManager] 音量监测已启动');
         } catch (e) {
             console.warn('[Live2DManager] 音频分析器初始化失败:', e);
         }
@@ -577,10 +641,16 @@ class Live2DManager {
                 sum += val * val;
             }
             this.currentVolume = Math.sqrt(sum / dataArray.length);
-
-            if (this.isSpeaking) {
-                requestAnimationFrame(updateVolume);
+            
+            // 调试日志：每50帧输出一次音量值
+            if (this._volumeLogCount === undefined) this._volumeLogCount = 0;
+            this._volumeLogCount++;
+            if (this._volumeLogCount % 50 === 0) {
+                console.debug('[Live2DManager] 音量监测:', this.currentVolume, 'isSpeaking:', this.isSpeaking);
             }
+
+            // 始终运行音量监测，而不是只在 speaking 时运行
+            requestAnimationFrame(updateVolume);
         };
 
         updateVolume();

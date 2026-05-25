@@ -410,18 +410,25 @@ function playAudioFromUrl(audioUrl, fullText){
   var audio = new Audio(audioUrl);
   currentAudio = audio;
 
-  // Live2D 口型同步
+  // Live2D 口型同步 - 在音频创建后立即初始化分析器
   if(isLive2DActive && window.live2dManager){
-    audio.addEventListener('canplaythrough', function(){
-      try{
-        window.live2dManager.initAudioAnalyser(audio);
-      }catch(e){ console.warn('音频分析初始化失败', e); }
+    // 立即初始化音频分析器（不要等到 canplaythrough）
+    try{
+      window.live2dManager.initAudioAnalyser(audio);
+    }catch(e){ console.warn('音频分析初始化失败', e); }
+    
+    // 在音频开始播放时启动口型同步
+    audio.addEventListener('playing', function(){
       window.live2dManager.startSpeaking();
     });
+    
     audio.addEventListener('ended', function(){
       window.live2dManager.stopSpeaking();
     });
     audio.addEventListener('error', function(){
+      window.live2dManager.stopSpeaking();
+    });
+    audio.addEventListener('pause', function(){
       window.live2dManager.stopSpeaking();
     });
   }
@@ -435,7 +442,7 @@ function playAudioFromUrl(audioUrl, fullText){
         var h = Math.random() * 12 + 6;
         mouth.style.height = h + 'px';
         mouth.style.width = (h * 1.2) + 'px';
-        svgTimer = setTimeout(animateMouth, 100);
+        svgTimer = setTimeout(animateMouth, 80);
       };
       audio.addEventListener('playing', function(){
         mouth.classList.add('speaking');
@@ -452,10 +459,10 @@ function playAudioFromUrl(audioUrl, fullText){
     }
   }
 
-  // 修复 play() 被 pause() 中断：延迟100ms播放
+  // 修复 play() 被 pause() 中断：延迟50ms播放
   setTimeout(function(){
     audio.play().catch(function(e){ console.warn('音频播放失败', e); });
-  }, 100);
+  }, 50);
 
   // 根据完整文本播放表情时间线（可选）
   if(fullText && window.sentimentAnalyzer && isLive2DActive){

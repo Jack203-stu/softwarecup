@@ -84,6 +84,7 @@ class FeedbackRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     text: str
+    voice: str = None
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
@@ -96,12 +97,12 @@ async def text_to_speech(req: ChatRequest):
     preset = get_preset_reply(req.text)
     if preset:
         reply_audio = f"../data/processed/reply_{uuid.uuid4().hex[:8]}.wav"
-        tts.synthesize(preset, reply_audio)
+        tts.synthesize(preset, reply_audio, voice=req.voice)
         return {"question": req.text, "answer": preset, "audio_url": f"/api/audio/{os.path.basename(reply_audio)}"}
     result = rag.answer(req.text)
     clean_answer = remove_emoji(result['answer'])
     reply_audio = f"../data/processed/reply_{uuid.uuid4().hex[:8]}.wav"
-    tts.synthesize(clean_answer, reply_audio)
+    tts.synthesize(clean_answer, reply_audio, voice=req.voice)
     duration = time.time() - start
     logger.add(req.text, clean_answer, duration=duration, source="tts")
     return {
