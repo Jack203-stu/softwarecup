@@ -1,0 +1,17 @@
+# Python 虚拟环境
+venv/
+env/
+.venv/
+data/processed/*.wav
+data/processed/*.webm
+
+__pycache__/
+*.pyc
+*.pyo
+*.log
+data/interaction_log.json
+.DS_Store
+Thumbs.db
+.cache/
+pretrained_models/
+Miniconda3-latest-Linux-x86_64.sh

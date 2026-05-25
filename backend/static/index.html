@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>灵山胜境 · AI导游小灵</title>
+<!-- PIXI.js + pixi-live2d-display -->
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
+<script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js"></script>
+<!-- 自定义模块 -->
+<script src="/static/js/sentiment-analyzer.js"></script>
+<script src="/static/js/live2d-manager.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei",sans-serif;background:linear-gradient(180deg,#1a0533,#0d1b3e);height:100vh;display:flex;justify-content:center;align-items:center;overflow:hidden}
+
+/* 星空背景 */
+.stars{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.star{position:absolute;background:white;border-radius:50%;animation:twinkle 2s infinite alternate}
+@keyframes twinkle{from{opacity:.3}to{opacity:1}}
+
+/* 主容器 */
+.app{width:1050px;height:700px;display:flex!important;margin:0 auto;background:rgba(255,255,255,.96);border-radius:20px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5);z-index:1}
+
+/* ===== 左侧数字人面板 ===== */
+.human-panel{width:420px;background:linear-gradient(180deg,#667eea,#764ba2);display:flex;flex-direction:column;align-items:center;position:relative;overflow:hidden}
+
+/* 形象切换栏 */
+.avatar-switcher{width:100%;padding:10px 15px;display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.2);z-index:10;flex-shrink:0}
+.avatar-switcher-label{color:rgba(255,255,255,.7);font-size:12px;white-space:nowrap}
+.avatar-switcher select{flex:1;background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:5px 10px;font-size:13px;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='white' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.avatar-switcher select option{background:#333;color:white}
+.avatar-switcher select:focus{border-color:rgba(255,255,255,.6)}
+.avatar-switcher .btn-manage{color:rgba(255,255,255,.8);font-size:12px;padding:4px 10px;border:1px solid rgba(255,255,255,.3);border-radius:6px;cursor:pointer;transition:all .2s;text-decoration:none;white-space:nowrap}
+.avatar-switcher .btn-manage:hover{background:rgba(255,255,255,.2);color:white}
+
+/* Live2D 容器 */
+.avatar-area{position:relative;z-index:2;text-align:center;width:400px;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.avatar-area canvas{border-radius:10px}
+
+/* 名称显示 */
+.name-display{color:white;font-size:18px;font-weight:bold;margin-top:8px;text-align:center;z-index:3;position:relative}
+.name-display .role{font-size:12px;font-weight:normal;color:rgba(255,255,255,.7);margin-top:2px}
+
+/* 表情状态指示器 */
+.expression-indicator{position:absolute;top:50px;right:15px;z-index:10;display:flex;flex-direction:column;gap:5px;align-items:flex-end}
+.expr-badge{background:rgba(0,0,0,.4);color:white;font-size:11px;padding:3px 10px;border-radius:12px;transition:all .3s;opacity:0;transform:translateX(10px)}
+.expr-badge.active{opacity:1;transform:translateX(0)}
+
+/* SVG 默认形象（降级） */
+.svg-avatar{display:none;position:relative;z-index:2;text-align:center}
+.svg-avatar .head{width:100px;height:100px;background:linear-gradient(135deg,#ffd9a0,#f0c070);border-radius:50%;margin:0 auto;position:relative;border:3px solid #e0a030}
+.svg-avatar .eyes{display:flex;justify-content:center;gap:30px;padding-top:30px}
+.svg-avatar .eye{width:10px;height:14px;background:#333;border-radius:50%;transition:all .3s}
+.svg-avatar .mouth{width:20px;height:8px;background:#c06060;border-radius:0 0 10px 10px;margin:12px auto 0;transition:all .15s}
+.svg-avatar .mouth.speaking{height:16px;width:24px;border-radius:50%}
+.svg-avatar .hat{position:absolute;top:-35px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:55px solid transparent;border-right:55px solid transparent;border-bottom:40px solid #c03030}
+.svg-avatar .hat-base{position:absolute;top:-5px;left:50%;transform:translateX(-50%);width:120px;height:12px;background:#a02020;border-radius:3px}
+
+/* ===== 右侧对话面板 ===== */
+.chat-panel{flex:1;display:flex;flex-direction:column;background:#fafafa}
+
+/* 顶部标题 */
+.chat-header{padding:15px 20px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;display:flex;align-items:center;gap:10px}
+.chat-header h2{font-size:18px;font-weight:600}
+.chat-header .status{font-size:12px;opacity:.8;margin-left:auto;display:flex;align-items:center;gap:5px}
+.chat-header .status-dot{width:8px;height:8px;background:#00ff88;border-radius:50%;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* 消息区域 */
+.messages{flex:1;overflow-y:auto;padding:15px;display:flex;flex-direction:column;gap:12px}
+.messages::-webkit-scrollbar{width:4px}
+.messages::-webkit-scrollbar-thumb{background:#ccc;border-radius:2px}
+
+.msg{max-width:85%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.6;word-break:break-word;animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg.user{align-self:flex-end;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border-bottom-right-radius:4px}
+.msg.bot{align-self:flex-start;background:white;color:#333;border:1px solid #e8e8e8;border-bottom-left-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.msg.bot .emotion-tag{display:inline-block;font-size:11px;color:#999;margin-left:6px;padding:1px 6px;background:#f5f5f5;border-radius:8px}
+
+/* 打字指示器 */
+.typing{align-self:flex-start;padding:10px 14px;background:white;border:1px solid #e8e8e8;border-radius:12px;border-bottom-left-radius:4px;display:none}
+.typing.show{display:flex;gap:4px;align-items:center}
+.typing span{width:6px;height:6px;background:#999;border-radius:50%;animation:bounce .6s infinite alternate}
+.typing span:nth-child(2){animation-delay:.2s}
+.typing span:nth-child(3){animation-delay:.4s}
+@keyframes bounce{to{transform:translateY(-4px);opacity:.4}}
+
+/* 快捷问题 */
+.quick-questions{padding:8px 15px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid #eee;background:#f8f8f8}
+.quick-q{font-size:12px;padding:5px 12px;border:1px solid #ddd;border-radius:15px;cursor:pointer;background:white;color:#555;transition:all .2s;white-space:nowrap}
+.quick-q:hover{background:#667eea;color:white;border-color:#667eea}
+
+/* 输入区域 */
+.input-area{padding:12px 15px;border-top:1px solid #eee;display:flex;gap:8px;align-items:center;background:white}
+.input-area input{flex:1;padding:10px 15px;border:2px solid #e8e8e8;border-radius:20px;font-size:14px;outline:none;transition:border .2s}
+.input-area input:focus{border-color:#667eea}
+.input-area button{width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0}
+.btn-send{background:linear-gradient(135deg,#667eea,#764ba2);color:white}
+.btn-send:hover{transform:scale(1.05)}
+.btn-voice{background:#f0f0f0;color:#666;position:relative}
+.btn-voice.recording{background:#ff4444;color:white;animation:recPulse 1s infinite}
+@keyframes recPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,68,68,.4)}50%{box-shadow:0 0 0 10px rgba(255,68,68,0)}}
+
+/* 加载动画 */
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Toast 通知 */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:white;padding:10px 24px;border-radius:20px;font-size:14px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+
+/* 响应式 */
+@media(max-width:768px){
+  .app{width:100%;height:100vh;border-radius:0;flex-direction:column}
+  .human-panel{width:100%;height:280px}
+  .avatar-area{min-height:200px}
+  .chat-panel{flex:1}
+}
+</style>
+</head>
+<body>
+
+<!-- 星空 -->
+<div class="stars" id="stars"></div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- 主应用 -->
+<div class="app">
+  <!-- 左侧数字人 -->
+  <div class="human-panel">
+    <!-- 形象切换栏 -->
+    <div class="avatar-switcher">
+      <span class="avatar-switcher-label">形象:</span>
+      <select id="avatarSelect">
+        <option value="">加载中...</option>
+      </select>
+      <a href="/static/avatar-manage.html" class="btn-manage" title="管理形象">管理</a>
+    </div>
+
+    <!-- 表情指示器 -->
+    <div class="expression-indicator" id="exprIndicator">
+      <div class="expr-badge" id="exprBadge"></div>
+    </div>
+
+    <!-- Live2D 容器 -->
+    <div class="avatar-area" id="avatarArea">
+      <!-- Live2D 或 SVG 将在此渲染 -->
+    </div>
+
+    <!-- 名称显示 -->
+    <div class="name-display" id="nameDisplay" style="display:none">
+      <span style="color:#00ff88">●</span> <span id="guideNameText">小灵</span>
+      <div class="role">AI 智慧导游</div>
+    </div>
+  </div>
+
+  <!-- 右侧对话 -->
+  <div class="chat-panel">
+    <div class="chat-header">
+      <h2>灵山胜境 · AI导游</h2>
+      <div class="status"><div class="status-dot"></div>在线</div>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="msg bot">您好！我是灵山胜境的AI智慧导游，很高兴为您服务！您可以问我关于灵山胜境的任何问题，也可以点击下方快捷问题快速了解。</div>
+    </div>
+
+    <div class="typing" id="typing"><span></span><span></span><span></span></div>
+
+    <div class="quick-questions" id="quickQuestions">
+      <div class="quick-q" onclick="sendQuick('灵山大佛有多高？')">灵山大佛有多高？</div>
+      <div class="quick-q" onclick="sendQuick('梵宫有什么特色？')">梵宫有什么特色？</div>
+      <div class="quick-q" onclick="sendQuick('五印坛城是什么？')">五印坛城是什么？</div>
+      <div class="quick-q" onclick="sendQuick('灵山的历史由来')">灵山的历史由来</div>
+      <div class="quick-q" onclick="sendQuick('推荐游览路线')">推荐游览路线</div>
+    </div>
+
+    <div class="input-area">
+      <button class="btn-voice" id="btnVoice" onclick="toggleVoice()" title="语音输入">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
+      <input type="text" id="inputBox" placeholder="输入您的问题..." onkeydown="if(event.key==='Enter')sendMessage()">
+      <button class="btn-send" onclick="sendMessage()" title="发送">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== 全局变量 =====
+var modelsConfig = [];
+var currentModelId = localStorage.getItem('selectedModelId') || 'shizuku';
+var currentVoice = 'zh-CN-XiaoxiaoNeural';   // 默认音色，可根据后端实际支持修改
+var isRecording = false;
+var mediaRecorder = null;
+var audioChunks = [];
+var currentAudio = null;
+var isLive2DActive = false;
+
+// ===== 星空背景 =====
+(function(){
+  var c=document.getElementById('stars');
+  for(var i=0;i<80;i++){
+    var s=document.createElement('div');s.className='star';
+    s.style.left=Math.random()*100+'%';s.style.top=Math.random()*100+'%';
+    var sz=Math.random()*2+1;s.style.width=sz+'px';s.style.height=sz+'px';
+    s.style.animationDelay=Math.random()*2+'s';c.appendChild(s);
+  }
+})();
+
+// ===== Toast =====
+function showToast(msg){
+  var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  setTimeout(function(){t.classList.remove('show')},2500);
+}
+
+// ===== 加载模型配置 =====
+async function loadModelsConfig(){
+  try{
+    var res=await fetch('/static/live2d/models.json');
+    var data=await res.json();
+    modelsConfig=data.models||[];
+
+    // 填充下拉框
+    var sel=document.getElementById('avatarSelect');
+    sel.innerHTML='';
+    modelsConfig.forEach(function(m){
+      var opt=document.createElement('option');
+      opt.value=m.id;opt.textContent=m.name;
+      if(m.id===currentModelId)opt.selected=true;
+      sel.appendChild(opt);
+    });
+
+    // 加载当前模型
+    var current=modelsConfig.find(function(m){return m.id===currentModelId});
+    if(!current&&modelsConfig.length>0){current=modelsConfig[0];currentModelId=current.id;}
+    if(current){
+      // 同步音色
+      if(current.voice){
+        currentVoice = current.voice;
+        try { await fetch('/api/config/set-voice?voice_id='+current.voice, {method:'POST'}); } catch(e) {}
+      }
+      await loadLive2DModel(current);
+    } else {
+      restoreSVG();
+    }
+  }catch(e){
+    console.error('加载模型配置失败:',e);
+    document.getElementById('avatarSelect').innerHTML='<option value="">加载失败</option>';
+    restoreSVG();
+  }
+}
+
+// ===== 加载 Live2D 模型（修正路径映射）=====
+async function loadLive2DModel(modelConfig){
+  // 停止当前音频
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+
+  var container=document.getElementById('avatarArea');
+  var nameDisplay=document.getElementById('nameDisplay');
+  var nameText=document.getElementById('guideNameText');
+
+  // 修正模型URL：将旧路径映射到正确的 node_modules 路径
+  if (modelConfig.url && modelConfig.url.includes('/static/models/')) {
+    const modelId = modelConfig.id;
+    modelConfig.url = `/static/live2d/node_modules/live2d-widget-model-${modelId}/assets/${modelId}.model.json`;
+  }
+
+  // 使用 Live2DManager
+  var manager=window.live2dManager;
+  var success=await manager.init(container,modelConfig);
+
+  if(success){
+    isLive2DActive=true;
+    nameDisplay.style.display='block';
+    nameText.textContent=modelConfig.name||'数字人';
+    // 隐藏 manager 内部创建的 name-display（我们自己管理）
+    var internalName=container.querySelector('.name-display');
+    if(internalName)internalName.style.display='none';
+  }else{
+    isLive2DActive=false;
+    restoreSVG();
+  }
+}
+
+// ===== 恢复 SVG 默认形象 =====
+function restoreSVG(){
+  isLive2DActive=false;
+  var container=document.getElementById('avatarArea');
+  container.innerHTML=`
+    <div class="svg-avatar" style="display:block;padding-top:60px">
+      <div class="head">
+        <div class="hat"></div>
+        <div class="hat-base"></div>
+        <div class="eyes"><div class="eye"></div><div class="eye"></div></div>
+        <div class="mouth" id="svgMouth"></div>
+      </div>
+      <div style="margin-top:15px;color:white;font-size:18px;font-weight:bold">
+        <span style="color:#00ff88">●</span> 小灵
+      </div>
+      <div style="color:rgba(255,255,255,.6);font-size:12px;margin-top:2px">AI 智慧导游</div>
+    </div>`;
+  document.getElementById('nameDisplay').style.display='none';
+}
+
+// ===== 形象切换 =====
+document.getElementById('avatarSelect').addEventListener('change', async function(){
+  var id=this.value;
+  var model=modelsConfig.find(function(m){return m.id===id});
+  if(!model)return;
+
+  currentModelId=id;
+  localStorage.setItem('selectedModelId',id);
+
+  // 同步音色
+  if(model.voice){
+    currentVoice = model.voice;
+    try { await fetch('/api/config/set-voice?voice_id='+model.voice, {method:'POST'}); } catch(e) {}
+  } else {
+    currentVoice = 'zh-CN-XiaoxiaoNeural';
+  }
+
+  await loadLive2DModel(model);
+  showToast('已切换为: '+model.name);
+});
+
+// ===== 发送消息 =====
+async function sendMessage(){
+  var input=document.getElementById('inputBox');
+  var text=input.value.trim();
+  if(!text)return;
+  input.value='';
+  addMessage('user',text);
+  await getAIReply(text);
+}
+
+function sendQuick(text){
+  document.getElementById('inputBox').value=text;
+  sendMessage();
+}
+
+// ===== 添加消息 =====
+function addMessage(role,text,emotionTag){
+  var div=document.createElement('div');
+  div.className='msg '+role;
+  if(role==='bot'&&emotionTag){
+    div.innerHTML=text+'<span class="emotion-tag">'+emotionTag+'</span>';
+  }else{
+    div.textContent=text;
+  }
+  var msgs=document.getElementById('messages');
+  msgs.appendChild(div);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+// ===== 获取 AI 回复（使用 /api/chat/tts）=====
+async function getAIReply(question){
+  var typing=document.getElementById('typing');
+  typing.classList.add('show');
+
+  try{
+    var res=await fetch('/api/chat/tts',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ text: question, voice: currentVoice })
+    });
+    var data=await res.json();
+    typing.classList.remove('show');
+
+    var answer = data.answer || '抱歉，我暂时无法回答这个问题。';
+    var audioUrl = data.audio_url;
+
+    // 情感分析
+    var sentiment=window.sentimentAnalyzer.analyze(answer);
+    var emotionTag=getEmotionTag(sentiment.emotion);
+    addMessage('bot', answer, emotionTag);
+
+    // 播放音频（带口型同步和表情时间线）
+    if(audioUrl){
+      playAudioFromUrl(audioUrl, answer);
+    } else {
+      // 无音频时仅驱动表情
+      if(isLive2DActive){
+        var timeline=window.sentimentAnalyzer.analyzeWithTimeline(answer);
+        playExpressionTimeline(timeline);
+      }
+    }
+  }catch(e){
+    typing.classList.remove('show');
+    addMessage('bot','网络异常，请稍后重试。');
+    console.error('AI回复失败:',e);
+  }
+}
+
+// ===== 播放音频URL，支持Live2D口型同步和表情时间线 =====
+function playAudioFromUrl(audioUrl, fullText){
+  // 停止当前音频
+  if(currentAudio){
+    currentAudio.pause();
+    currentAudio = null;
+  }
+
+  var audio = new Audio(audioUrl);
+  currentAudio = audio;
+
+  // Live2D 口型同步
+  if(isLive2DActive && window.live2dManager){
+    audio.addEventListener('canplaythrough', function(){
+      try{
+        window.live2dManager.initAudioAnalyser(audio);
+      }catch(e){ console.warn('音频分析初始化失败', e); }
+      window.live2dManager.startSpeaking();
+    });
+    audio.addEventListener('ended', function(){
+      window.live2dManager.stopSpeaking();
+    });
+    audio.addEventListener('error', function(){
+      window.live2dManager.stopSpeaking();
+    });
+  }
+  // SVG 降级口型动画
+  else if(!isLive2DActive){
+    var mouth = document.getElementById('svgMouth');
+    if(mouth){
+      var svgTimer = null;
+      var animateMouth = function(){
+        if(!mouth || !currentAudio || currentAudio.paused || currentAudio.ended) return;
+        var h = Math.random() * 12 + 6;
+        mouth.style.height = h + 'px';
+        mouth.style.width = (h * 1.2) + 'px';
+        svgTimer = setTimeout(animateMouth, 100);
+      };
+      audio.addEventListener('playing', function(){
+        mouth.classList.add('speaking');
+        animateMouth();
+      });
+      audio.addEventListener('ended', function(){
+        mouth.classList.remove('speaking');
+        if(svgTimer) clearTimeout(svgTimer);
+      });
+      audio.addEventListener('pause', function(){
+        mouth.classList.remove('speaking');
+        if(svgTimer) clearTimeout(svgTimer);
+      });
+    }
+  }
+
+  // 修复 play() 被 pause() 中断：延迟100ms播放
+  setTimeout(function(){
+    audio.play().catch(function(e){ console.warn('音频播放失败', e); });
+  }, 100);
+
+  // 根据完整文本播放表情时间线（可选）
+  if(fullText && window.sentimentAnalyzer && isLive2DActive){
+    var timeline = window.sentimentAnalyzer.analyzeWithTimeline(fullText);
+    playExpressionTimeline(timeline);
+  }
+}
+
+// ===== 表情时间线播放 =====
+function playExpressionTimeline(timeline){
+  var manager=window.live2dManager;
+  timeline.forEach(function(item){
+    setTimeout(function(){
+      manager.playExpression(item.emotion,item.duration);
+      updateExprIndicator(item.emotion);
+    },item.startDelay);
+  });
+}
+
+// ===== 更新表情指示器 =====
+function updateExprIndicator(emotion){
+  var badge=document.getElementById('exprBadge');
+  var labels={
+    neutral:'平静',happy:'开心',surprised:'惊讶',sad:'难过',
+    angry:'生气',thinking:'思考',greeting:'问候',explaining:'讲解'
+  };
+  badge.textContent=labels[emotion]||emotion;
+  badge.classList.add('active');
+  setTimeout(function(){badge.classList.remove('active')},2000);
+}
+
+// ===== 情感标签 =====
+function getEmotionTag(emotion){
+  var tags={
+    happy:'😊 开心',surprised:'😮 惊讶',sad:'😢 难过',
+    angry:'😠 生气',thinking:'🤔 思考',greeting:'👋 问候',
+    explaining:'📖 讲解',neutral:'💬'
+  };
+  return tags[emotion]||'💬';
+}
+
+// ===== 语音输入（使用 /api/chat/voice）=====
+async function toggleVoice(){
+  var btn=document.getElementById('btnVoice');
+
+  if(isRecording){
+    isRecording=false;
+    btn.classList.remove('recording');
+    if(mediaRecorder&&mediaRecorder.state==='recording'){
+      mediaRecorder.stop();
+    }
+    return;
+  }
+
+  try{
+    var stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    mediaRecorder=new MediaRecorder(stream);
+    audioChunks=[];
+
+    mediaRecorder.ondataavailable=function(e){
+      if(e.data.size>0)audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop=async function(){
+      stream.getTracks().forEach(function(t){t.stop()});
+      var blob=new Blob(audioChunks,{type:'audio/webm'});
+      await sendVoiceMessage(blob);
+    };
+
+    mediaRecorder.start();
+    isRecording=true;
+    btn.classList.add('recording');
+    showToast('正在录音...点击停止');
+
+  }catch(e){
+    showToast('无法访问麦克风');
+    console.error('麦克风访问失败:',e);
+  }
+}
+
+async function sendVoiceMessage(blob){
+  var fd=new FormData();
+  fd.append('file', blob, 'recording.webm');   // 字段名必须为 file
+
+  try{
+    var res=await fetch('/api/chat/voice', { method:'POST', body:fd });
+    var data=await res.json();
+    var userText = data.user_text || '';
+    var replyText = data.reply_text || '';
+    var audioUrl = data.audio_url;
+
+    if(userText) addMessage('user', userText);
+    if(replyText){
+      var sentiment = window.sentimentAnalyzer.analyze(replyText);
+      var emotionTag = getEmotionTag(sentiment.emotion);
+      addMessage('bot', replyText, emotionTag);
+    }
+    if(audioUrl){
+      playAudioFromUrl(audioUrl, replyText);
+    } else if(replyText && isLive2DActive){
+      // 无音频时仅播放表情时间线
+      var timeline = window.sentimentAnalyzer.analyzeWithTimeline(replyText);
+      playExpressionTimeline(timeline);
+    }
+  }catch(e){
+    showToast('语音识别失败');
+    console.error('ASR失败:', e);
+  }
+}
+
+// ===== 初始化 =====
+window.onload=function(){
+  loadModelsConfig();
+};
+
+// ===== 页面卸载清理 =====
+window.onbeforeunload=function(){
+  if(window.live2dManager){
+    window.live2dManager.destroy();
+  }
+  if(currentAudio){
+    currentAudio.pause();
+  }
+};
+</script>
+
+</body>
+</html>

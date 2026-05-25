@@ -1,0 +1,51 @@
+{
+  "models": [
+    {
+      "id": "default",
+      "name": "默认形象",
+      "type": "svg"
+    },
+    {
+      "id": "shizuku",
+      "name": "雫·优雅女士",
+      "type": "live2d",
+      "modelUrl": "/static/live2d/node_modules/live2d-widget-model-shizuku/assets/shizuku.model.json",
+      "voice": "zh-CN-XiaoyiNeural"
+    },
+    {
+      "id": "koharu",
+      "name": "小春·温柔少女",
+      "type": "live2d",
+      "modelUrl": "/static/live2d/node_modules/live2d-widget-model-koharu/assets/koharu.model.json",
+      "voice": "zh-CN-XiaomoNeural"
+    },
+    {
+      "id": "haruto",
+      "name": "阳斗·阳光少年",
+      "type": "live2d",
+      "modelUrl": "/static/live2d/node_modules/live2d-widget-model-haruto/assets/haruto.model.json",
+      "voice": "zh-CN-YunyangNeural"
+    },
+    {
+      "id": "hijiki",
+      "name": "小黑·神秘猫咪",
+      "type": "live2d",
+      "modelUrl": "/static/live2d/node_modules/live2d-widget-model-hijiki/assets/hijiki.model.json",
+      "voice": "zh-CN-YunxiNeural"
+    },
+    {
+      "id": "tororo",
+      "name": "多罗罗·憨厚仓鼠",
+      "type": "live2d",
+      "modelUrl": "/static/live2d/node_modules/live2d-widget-model-tororo/assets/tororo.model.json",
+      "voice": "zh-CN-YunjianNeural"
+    },
+    {
+      "id": "miku",
+      "name": "未来·歌姬初音",
+      "type": "live2d",
+      "modelUrl": "/static/live2d/node_modules/live2d-widget-model-miku/assets/miku.model.json",
+      "voice": "zh-CN-XiaoxuanNeural"
+    }
+  ]
+}
