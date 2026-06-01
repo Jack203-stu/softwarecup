@@ -96,19 +96,48 @@ async def set_voice(voice_id: str):
     tts.voice = voice_id
     return {"status": "ok", "voice": voice_id}
 
+@app.get("/api/config/voices")
+async def get_voices():
+    """获取可用的语音音色列表"""
+    voices = [
+        {"id": "zh-CN-XiaoxiaoNeural", "name": "晓晓", "gender": "女", "style": "温暖亲切"},
+        {"id": "zh-CN-XiaoyiNeural", "name": "小艺", "gender": "女", "style": "活泼可爱"},
+        {"id": "zh-CN-YunjianNeural", "name": "云健", "gender": "男", "style": "激情有力"},
+        {"id": "zh-CN-YunxiNeural", "name": "云希", "gender": "男", "style": "阳光清朗"},
+        {"id": "zh-CN-YunxiaNeural", "name": "云霞", "gender": "男", "style": "温柔可爱"},
+        {"id": "zh-CN-YunyangNeural", "name": "云阳", "gender": "男", "style": "专业沉稳"},
+    ]
+    return {"voices": voices, "current_voice": tts.voice}
+
 @app.post("/api/chat/tts")
 async def text_to_speech(req: ChatRequest):
     start = time.time()
+    
+    # 检查预设回答（快速路径）
     preset = get_preset_reply(req.text)
     if preset:
         reply_audio = f"../data/processed/reply_{uuid.uuid4().hex[:8]}.wav"
+        tts_start = time.time()
         tts.synthesize(preset, reply_audio, voice=req.voice)
+        tts_time = time.time() - tts_start
+        print(f"⏱️ 预设回答 - TTS: {tts_time:.2f}s, 总耗时: {time.time()-start:.2f}s")
         return {"question": req.text, "answer": preset, "audio_url": f"/api/audio/{os.path.basename(reply_audio)}"}
+    
+    # RAG问答路径
+    rag_start = time.time()
     result = rag.answer(req.text)
+    rag_time = time.time() - rag_start
+    
     clean_answer = remove_emoji(result['answer'])
+    
+    tts_start = time.time()
     reply_audio = f"../data/processed/reply_{uuid.uuid4().hex[:8]}.wav"
     tts.synthesize(clean_answer, reply_audio, voice=req.voice)
+    tts_time = time.time() - tts_start
+    
     duration = time.time() - start
+    print(f"⏱️ RAG: {rag_time:.2f}s, TTS: {tts_time:.2f}s, 总耗时: {duration:.2f}s")
+    
     logger.add(req.text, clean_answer, duration=duration, source="tts")
     return {
         "question": result['question'],

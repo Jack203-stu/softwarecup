@@ -21,6 +21,23 @@ class KnowledgeBase:
         )
         
         self.collection_name = "lingshan_knowledge"
+        
+        # 初始化时一次性加载向量库，避免每次搜索都重新加载
+        self.vector_store = self._load_vector_store()
+    
+    def _load_vector_store(self):
+        """加载向量库（仅在初始化时调用一次）"""
+        if os.path.exists(self.vector_db_path):
+            try:
+                return Chroma(
+                    collection_name=self.collection_name,
+                    embedding_function=self.embeddings,
+                    persist_directory=self.vector_db_path
+                )
+            except Exception as e:
+                print(f"⚠️  加载向量库失败，将重建: {e}")
+                return None
+        return None
     
     def load_documents(self):
         docs = []
@@ -54,24 +71,28 @@ class KnowledgeBase:
         # 构建 Chroma 向量库
         vector_store = Chroma.from_texts(
             texts=all_texts,
-            embedding=self.embeddings,
+            embedding_function=self.embeddings,
             metadatas=all_metadatas,
             collection_name=self.collection_name,
             persist_directory=self.vector_db_path
         )
+        
+        # 更新缓存的向量库
+        self.vector_store = vector_store
         
         print(f"✅ 向量库构建完成：{len(all_texts)} 条记录")
         return vector_store
     
     def search(self, query: str, k: int = 5):
         """检索相关文档"""
-        # 每次从持久化目录加载
-        vector_store = Chroma(
-            collection_name=self.collection_name,
-            embedding_function=self.embeddings,
-            persist_directory=self.vector_db_path
-        )
-        docs = vector_store.similarity_search(query, k=k)
+        # 使用缓存的向量库，无需每次重新加载
+        if self.vector_store is None:
+            print("⚠️  向量库未加载，正在初始化...")
+            self.vector_store = self._load_vector_store()
+            if self.vector_store is None:
+                return []
+        
+        docs = self.vector_store.similarity_search(query, k=k)
         results = []
         for doc in docs:
             results.append({

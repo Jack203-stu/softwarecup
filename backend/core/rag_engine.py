@@ -1,6 +1,7 @@
 """RAG 问答引擎"""
 import os
 import sys
+import time
 sys.path.insert(0, '/home/zwy1128/tour-guide-ai/backend')
 from core.knowledge_base import KnowledgeBase
 from openai import OpenAI
@@ -43,9 +44,13 @@ class RAGEngine:
         self.system_prompt = """你是灵山胜境景区的AI数字导游"小灵"。热情亲切。仅根据参考资料回答，不要编造。回答80-150字。"""
     
     def answer(self, user_query: str) -> dict:
+        search_start = time.time()
         retrieved_docs = self.kb.search(user_query, k=4)
+        search_time = time.time() - search_start
+        
         context = "\n\n".join([f"[来源: {d['source']}]\n{d['content']}" for d in retrieved_docs])
         
+        llm_start = time.time()
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
@@ -55,6 +60,10 @@ class RAGEngine:
             temperature=0.7,
             max_tokens=300
         )
+        llm_time = time.time() - llm_start
+        
+        print(f"  📚 检索: {search_time:.2f}s, 🤖 LLM: {llm_time:.2f}s")
+        
         return {
             "question": user_query,
             "answer": response.choices[0].message.content,

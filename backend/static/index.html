@@ -218,6 +218,8 @@ function showToast(msg){
 }
 
 // ===== 加载模型配置 =====
+var currentVoice = localStorage.getItem('selectedVoice') || '';
+
 async function loadModelsConfig(){
   try{
     var res=await fetch('/static/live2d/models.json?t=' + Date.now()); // 添加时间戳防止缓存
@@ -228,8 +230,12 @@ async function loadModelsConfig(){
     var current=modelsConfig.find(function(m){return m.id===currentModelId});
     if(!current&&modelsConfig.length>0){current=modelsConfig[0];currentModelId=current.id;}
     if(current){
-      // 同步音色
-      if(current.voice){
+      // 同步音色（只有当用户没有自定义音色时才使用角色默认音色）
+      var savedVoice = localStorage.getItem('selectedVoice');
+      if(savedVoice){
+        currentVoice = savedVoice;
+        try { await fetch('/api/config/set-voice?voice_id='+savedVoice, {method:'POST'}); } catch(e) {}
+      } else if(current.voice){
         currentVoice = current.voice;
         try { await fetch('/api/config/set-voice?voice_id='+current.voice, {method:'POST'}); } catch(e) {}
       }
