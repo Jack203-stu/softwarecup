@@ -28,6 +28,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .model-card:hover{transform:translateY(-3px);box-shadow:0 8px 25px rgba(233,69,96,.15);border-color:rgba(233,69,96,.3)}
 .model-card.active{border-color:#e94560;box-shadow:0 0 20px rgba(233,69,96,.2)}
 .model-card.active::after{content:'当前使用';position:absolute;top:10px;right:10px;background:#e94560;color:white;font-size:11px;padding:3px 10px;border-radius:10px}
+.model-card.custom::after{content:'自定义';position:absolute;top:10px;right:10px;background:#00a86b;color:white;font-size:11px;padding:3px 10px;border-radius:10px}
 
 /* 模型预览区 */
 .model-preview{height:220px;background:linear-gradient(135deg,#1a1a2e,#16213e);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
@@ -47,6 +48,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .btn{padding:7px 16px;border-radius:8px;font-size:.85rem;cursor:pointer;transition:all .2s;border:none}
 .btn-primary{background:#e94560;color:white}
 .btn-primary:hover{background:#c73850}
+.btn-danger{background:#dc3545;color:white}
+.btn-danger:hover{background:#c82333}
 .btn-secondary{background:rgba(255,255,255,.1);color:#e0e0e0;border:1px solid rgba(255,255,255,.2)}
 .btn-secondary:hover{background:rgba(255,255,255,.2)}
 .btn-sm{padding:5px 12px;font-size:.8rem}
@@ -57,6 +60,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .upload-zone:hover,.upload-zone.dragover{border-color:#e94560;background:rgba(233,69,96,.05)}
 .upload-zone p{color:#999;margin-top:10px;font-size:.9rem}
 .upload-icon{font-size:40px;color:#e94560}
+.upload-progress{color:#00ff88;margin-top:10px;font-size:.85rem}
 
 /* 预览弹窗 */
 .preview-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);z-index:1000;display:none;align-items:center;justify-content:center}
@@ -73,6 +77,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 /* Toast */
 .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:white;padding:10px 24px;border-radius:20px;font-size:14px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
 .toast.show{opacity:1}
+.toast.error{background:rgba(220,53,69,.9)}
+.toast.success{background:rgba(40,167,69,.9)}
 </style>
 </head>
 <body>
@@ -89,13 +95,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="model-grid" id="modelGrid"></div>
 
   <div class="upload-section">
-    <div class="section-title">📤 上传自定义形象</div>
+    <div class="section-title">📤 上传自定义 Live2D 形象</div>
     <div class="upload-zone" id="uploadZone">
       <div class="upload-icon">📁</div>
-      <p>拖拽 Live2D 模型文件到此处，或点击选择文件</p>
-      <p style="font-size:.75rem;color:#666;margin-top:5px">支持 .model.json 格式（Cubism 2）</p>
+      <p>拖拽 Live2D 模型文件夹（ZIP格式）到此处，或点击选择文件</p>
+      <p style="font-size:.75rem;color:#666;margin-top:5px">支持 .zip 格式（包含 .model.json 文件）</p>
+      <div class="upload-progress" id="uploadProgress"></div>
     </div>
-    <input type="file" id="fileInput" accept=".json,.zip" multiple style="display:none">
+    <input type="file" id="fileInput" accept=".zip" multiple style="display:none">
   </div>
 </div>
 
@@ -120,33 +127,43 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 var modelsConfig=[];
 var previewApp=null;
 var previewModel=null;
+var thumbnailApps=[]; // 存储所有缩略图的 PIXI applications
 
-function showToast(msg){
-  var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
-  setTimeout(function(){t.classList.remove('show')},2500);
+function showToast(msg, type='info'){
+  var t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='toast show '+type;
+  setTimeout(function(){t.classList.remove('show')},3000);
 }
 
 // 加载模型列表
 async function loadModels(){
   try{
-    var res=await fetch('/static/live2d/models.json');
+    var res=await fetch('/static/live2d/models.json?t=' + Date.now());
     var data=await res.json();
     modelsConfig=(data.models||[]).filter(function(m){return m.type==='live2d' && m.modelUrl});
     renderModelGrid();
   }catch(e){
-    showToast('加载模型列表失败');
+    showToast('加载模型列表失败', 'error');
   }
 }
 
 // 渲染模型卡片
 function renderModelGrid(){
+  // 销毁所有旧的缩略图应用，释放 WebGL contexts
+  thumbnailApps.forEach(function(app){
+    try{app.destroy(true)}catch(e){}
+  });
+  thumbnailApps=[];
+
   var grid=document.getElementById('modelGrid');
   grid.innerHTML='';
   var currentId=localStorage.getItem('selectedModelId')||'shizuku';
 
   modelsConfig.forEach(function(model){
     var card=document.createElement('div');
-    card.className='model-card'+(model.id===currentId?' active':'');
+    var isCustom = model.custom === true;
+    card.className='model-card'+(model.id===currentId?' active':'')+(isCustom?' custom':'');
     card.innerHTML=`
       <div class="model-preview" id="preview-${model.id}">
         <div class="loading">加载预览...</div>
@@ -157,6 +174,7 @@ function renderModelGrid(){
       <div class="model-actions">
         <button class="btn btn-primary btn-sm" onclick="selectModel('${model.id}')">选择</button>
         <button class="btn btn-secondary btn-sm" onclick="openPreview('${model.id}')">预览</button>
+        ${isCustom?'<button class="btn btn-danger btn-sm" onclick="deleteCustomModel(\''+model.id+'\')">删除</button>':''}
       </div>
     `;
     grid.appendChild(card);
@@ -179,6 +197,10 @@ async function loadThumbnail(model){
       autoDensity:true,
       resolution:Math.min(window.devicePixelRatio||1,2)
     });
+    
+    // 将应用添加到数组，便于后续销毁
+    thumbnailApps.push(app);
+    
     container.innerHTML='';
     container.appendChild(app.view);
 
@@ -190,7 +212,7 @@ async function loadThumbnail(model){
     var sc=Math.min(app.screen.width/m.width,app.screen.height/m.height);
     m.scale.set(sc*0.7);
   }catch(e){
-    container.innerHTML='<div style="font-size:48px">'+(model.thumbnail||'🎭')+'</div>';
+    container.innerHTML='<div style="font-size:48px">🎭</div>';
   }
 }
 
@@ -212,7 +234,25 @@ async function selectModel(id){
   var card=document.querySelector('#preview-'+id);
   if(card)card.closest('.model-card').classList.add('active');
 
-  showToast('已选择: '+model.name+'，返回主页生效');
+  showToast('已选择: '+model.name+'，返回主页生效', 'success');
+}
+
+// 删除自定义模型
+async function deleteCustomModel(id){
+  if(!confirm('确定要删除这个自定义形象吗？')) return;
+
+  try{
+    var res=await fetch('/api/admin/delete-live2d/'+id,{method:'DELETE'});
+    var data=await res.json();
+    if(data.status==='ok'){
+      showToast('删除成功', 'success');
+      loadModels();
+    }else{
+      showToast(data.error||'删除失败', 'error');
+    }
+  }catch(e){
+    showToast('删除失败', 'error');
+  }
 }
 
 // 打开大预览
@@ -266,6 +306,7 @@ function closePreview(){
 // 上传功能
 var uploadZone=document.getElementById('uploadZone');
 var fileInput=document.getElementById('fileInput');
+var uploadProgress=document.getElementById('uploadProgress');
 
 uploadZone.onclick=function(){fileInput.click()};
 uploadZone.ondragover=function(e){e.preventDefault();uploadZone.classList.add('dragover')};
@@ -274,17 +315,31 @@ uploadZone.ondrop=function(e){e.preventDefault();uploadZone.classList.remove('dr
 fileInput.onchange=function(){handleUpload(fileInput.files)};
 
 async function handleUpload(files){
+  if(files.length===0) return;
+
+  uploadProgress.textContent='正在上传和解析模型...';
+
   for(var i=0;i<files.length;i++){
+    var file=files[i];
     var fd=new FormData();
-    fd.append('file',files[i]);
+    fd.append('file',file);
+
     try{
-      var res=await fetch('/api/admin/upload-avatar',{method:'POST',body:fd});
+      uploadProgress.textContent='正在上传: '+file.name+'...';
+      var res=await fetch('/api/admin/upload-live2d',{method:'POST',body:fd});
       var data=await res.json();
-      showToast(data.url?'上传成功: '+files[i].name:'上传失败: '+(data.error||'未知错误'));
+
+      if(data.status==='ok'){
+        showToast('上传成功: '+data.model.name, 'success');
+      }else{
+        showToast(data.error||'上传失败: '+file.name, 'error');
+      }
     }catch(e){
-      showToast('上传失败');
+      showToast('上传失败: '+file.name, 'error');
     }
   }
+
+  uploadProgress.textContent='';
   loadModels();
 }
 

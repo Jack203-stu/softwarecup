@@ -24,7 +24,7 @@
       "name": "阳斗·阳光少年",
       "type": "live2d",
       "modelUrl": "/static/live2d/node_modules/live2d-widget-model-haruto/assets/haruto.model.json",
-      "voice": "zh-CN-YunyangNeural"
+      "voice": "zh-CN-YunxiNeural"
     },
     {
       "id": "hijiki",
@@ -46,6 +46,27 @@
       "type": "live2d",
       "modelUrl": "/static/live2d/node_modules/live2d-widget-model-miku/assets/miku.model.json",
       "voice": "zh-CN-XiaoyiNeural"
+    },
+    {
+      "id": "epsilon2_1",
+      "name": "艾普西隆·青春少女",
+      "type": "live2d",
+      "modelUrl": "/static/live2d/node_modules/live2d-widget-model-epsilon2_1/assets/Epsilon2.1.model.json",
+      "voice": "zh-CN-XiaoxiaoNeural"
+    },
+    {
+      "id": "hibiki",
+      "name": "响·音乐少女",
+      "type": "live2d",
+      "modelUrl": "/static/live2d/node_modules/live2d-widget-model-hibiki/assets/hibiki.model.json",
+      "voice": "zh-CN-XiaoyiNeural"
+    },
+    {
+      "id": "chitose",
+      "name": "千岁·英俊青年",
+      "type": "live2d",
+      "modelUrl": "/static/live2d/node_modules/live2d-widget-model-chitose/assets/chitose.model.json",
+      "voice": "zh-CN-YunyangNeural"
     }
   ]
 }

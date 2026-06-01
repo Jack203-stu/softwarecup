@@ -220,7 +220,7 @@ function showToast(msg){
 // ===== 加载模型配置 =====
 async function loadModelsConfig(){
   try{
-    var res=await fetch('/static/live2d/models.json');
+    var res=await fetch('/static/live2d/models.json?t=' + Date.now()); // 添加时间戳防止缓存
     var data=await res.json();
     modelsConfig=data.models||[];
 

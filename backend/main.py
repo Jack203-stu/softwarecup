@@ -251,6 +251,7 @@ async def feedback(req: FeedbackRequest):
 # ========== 数字人形象管理 ==========
 from fastapi import UploadFile
 import shutil
+import json
 
 AVATAR_DIR = os.path.join(BASE_DIR, "static", "avatars")
 os.makedirs(AVATAR_DIR, exist_ok=True)
@@ -286,6 +287,134 @@ async def delete_avatar(filename: str):
         os.remove(filepath)
         return {"status": "ok"}
     return {"error": "文件不存在"}
+
+
+@app.post("/api/admin/upload-live2d")
+async def upload_live2d_model(file: UploadFile = File(...)):
+    """上传 Live2D 模型文件夹（支持 zip 格式）"""
+    import zipfile
+
+    if not file.filename.endswith('.zip'):
+        return {"error": "仅支持 ZIP 格式的 Live2D 模型"}
+
+    # 创建临时目录
+    temp_dir = os.path.join(BASE_DIR, "static", "live2d", "custom_models", uuid.uuid4().hex)
+    os.makedirs(temp_dir, exist_ok=True)
+
+    try:
+        # 保存 zip 文件
+        zip_path = os.path.join(temp_dir, file.filename)
+        with open(zip_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+
+        # 解压 zip
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(temp_dir)
+
+        # 删除 zip 文件
+        os.remove(zip_path)
+
+        # 查找 model.json 文件
+        model_json_path = None
+        model_name = file.filename.replace('.zip', '')
+
+        for root, dirs, files in os.walk(temp_dir):
+            for fname in files:
+                if fname.endswith('.model.json'):
+                    model_json_path = os.path.join(root, fname)
+                    # 从 model.json 读取名称
+                    try:
+                        with open(model_json_path, 'r', encoding='utf-8') as f:
+                            model_data = json.load(f)
+                            if 'name' in model_data:
+                                model_name = model_data['name']
+                    except:
+                        pass
+                    break
+            if model_json_path:
+                break
+
+        if not model_json_path:
+            # 清理临时目录
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            return {"error": "未找到 .model.json 文件，请确认是有效的 Live2D 模型"}
+
+        # 获取相对于 static/live2d 的路径
+        rel_path = os.path.relpath(model_json_path, os.path.join(BASE_DIR, "static", "live2d"))
+        model_url = f"/static/live2d/{rel_path.replace(os.sep, '/')}"
+
+        # 生成模型 ID
+        model_id = uuid.uuid4().hex[:8]
+
+        # 添加到 models.json
+        models_file = os.path.join(BASE_DIR, "static", "live2d", "models.json")
+        try:
+            with open(models_file, 'r', encoding='utf-8') as f:
+                models_data = json.load(f)
+        except:
+            models_data = {"models": []}
+
+        # 检查是否已存在相同路径
+        existing = False
+        for m in models_data.get("models", []):
+            if m.get("modelUrl") == model_url:
+                existing = True
+                break
+
+        if not existing:
+            new_model = {
+                "id": model_id,
+                "name": model_name,
+                "type": "live2d",
+                "modelUrl": model_url,
+                "voice": "zh-CN-XiaoxiaoNeural",
+                "custom": True
+            }
+            models_data["models"].append(new_model)
+
+            with open(models_file, 'w', encoding='utf-8') as f:
+                json.dump(models_data, f, ensure_ascii=False, indent=2)
+
+        return {
+            "status": "ok",
+            "model": {
+                "id": model_id,
+                "name": model_name,
+                "modelUrl": model_url
+            }
+        }
+
+    except Exception as e:
+        # 清理临时目录
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        return {"error": f"处理失败: {str(e)}"}
+
+@app.delete("/api/admin/delete-live2d/{model_id}")
+async def delete_live2d_model(model_id: str):
+    """删除自定义 Live2D 模型"""
+    models_file = os.path.join(BASE_DIR, "static", "live2d", "models.json")
+    try:
+        with open(models_file, 'r', encoding='utf-8') as f:
+            models_data = json.load(f)
+
+        original_length = len(models_data.get("models", []))
+        models_data["models"] = [m for m in models_data.get("models", [])
+                                  if m.get("id") != model_id or not m.get("custom")]
+
+        if len(models_data["models"]) < original_length:
+            with open(models_file, 'w', encoding='utf-8') as f:
+                json.dump(models_data, f, ensure_ascii=False, indent=2)
+            return {"status": "ok"}
+
+        return {"error": "模型不存在或无法删除内置模型"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/api/admin/refresh-models")
+async def refresh_models():
+    """刷新模型列表（重新读取 models.json）"""
+    return {"status": "ok"}
 
 
 
