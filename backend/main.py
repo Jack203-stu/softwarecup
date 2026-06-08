@@ -551,6 +551,11 @@ async def delete_model(filename: str):
     return {"error": "文件不存在"}
 
 
+@app.get("/api/visit")
+async def record_visit():
+    logger.add_visit()
+    return {"status": "ok"}
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "uptime": time.time()}
