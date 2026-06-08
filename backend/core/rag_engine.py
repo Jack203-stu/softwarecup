@@ -41,11 +41,11 @@ class RAGEngine:
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
         self.model = "qwen-plus"
-        self.system_prompt = """你是灵山胜境景区的AI数字导游"小灵"。热情亲切。仅根据参考资料回答，不要编造。回答80-150字。"""
+        self.system_prompt = """你是灵山胜境景区的AI数字导游"小灵"。热情亲切。仅根据参考资料回答，不要编造。回答60-120字，简洁明了。"""
     
     def answer(self, user_query: str) -> dict:
         search_start = time.time()
-        retrieved_docs = self.kb.search(user_query, k=4)
+        retrieved_docs = self.kb.search(user_query, k=3)
         search_time = time.time() - search_start
         
         context = "\n\n".join([f"[来源: {d['source']}]\n{d['content']}" for d in retrieved_docs])
@@ -57,12 +57,13 @@ class RAGEngine:
                 {"role": "system", "content": self.system_prompt},
                 {"role": "user", "content": f"【参考资料】\n{context}\n\n【用户问题】\n{user_query}"}
             ],
-            temperature=0.7,
-            max_tokens=300
+            temperature=0.3,
+            max_tokens=200,
+            top_p=0.9
         )
         llm_time = time.time() - llm_start
         
-        print(f"  📚 检索: {search_time:.2f}s, 🤖 LLM: {llm_time:.2f}s")
+        print(f"  [RAG] Search: {search_time:.2f}s, LLM: {llm_time:.2f}s")
         
         return {
             "question": user_query,

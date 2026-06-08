@@ -111,9 +111,16 @@
         <div class="page" id="page-models">
             <div class="page-title">数字人模型管理</div>
             <div style="margin-bottom:20px; display:flex; align-items:center; gap:10px;">
-                <input type="file" id="modelFile" accept="image/*">
-                <button class="btn" onclick="uploadModel()">上传新形象</button>
+                <input type="file" id="modelFile" accept=".zip" multiple style="display:none">
+                <button class="btn" onclick="document.getElementById('modelFile').click()">上传 Live2D 模型 (ZIP)</button>
                 <span id="modelUploadStatus" style="color:#FFD700; margin-left:10px;"></span>
+            </div>
+            <div style="padding:20px; background:#111827; border:2px dashed #2a3347; border-radius:12px; margin-bottom:20px; cursor:pointer;" onclick="document.getElementById('modelFile').click()" id="uploadZone">
+                <div style="text-align:center;">
+                    <div style="font-size:32px;">📁</div>
+                    <div style="color:#9ca3af; margin-top:8px;">拖拽 Live2D 模型文件夹（ZIP格式）到此处，或点击选择文件</div>
+                    <div style="color:#6b7280; font-size:12px; margin-top:4px;">支持 .zip 格式（包含 .model.json 文件）</div>
+                </div>
             </div>
             <div class="chart-card">
                 <h3>已上传模型</h3>
@@ -170,7 +177,8 @@ async function exportData(format){
 async function loadHistory(){
     const res = await fetch('/api/admin/recent');
     const data = await res.json();
-    document.getElementById('historyList').innerHTML = data.map(log => `
+    const logs = data.value || data;
+    document.getElementById('historyList').innerHTML = logs.map(log => `
         <div style="padding:10px;border-bottom:1px solid #1f2937;">
             <div style="color:#FFD700;font-size:12px;">${log.date} ${new Date(log.timestamp*1000).toLocaleTimeString()}</div>
             <div style="font-weight:bold;margin-top:4px;">Q: ${log.question}</div>
@@ -234,57 +242,122 @@ async function rebuildIndex(){
 }
 
 
+// Toast 提示
+function showToast(msg, type='info'){
+    var t=document.createElement('div');
+    t.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:white;padding:10px 24px;border-radius:20px;font-size:14px;z-index:9999;transition:opacity .3s;';
+    t.textContent=msg;
+    if(type==='success') t.style.background='rgba(40,167,69,.9)';
+    if(type==='error') t.style.background='rgba(220,53,69,.9)';
+    document.body.appendChild(t);
+    setTimeout(function(){t.style.opacity='0';setTimeout(function(){t.remove()},300)},3000);
+}
+
 // 模型管理功能
 async function loadModels() {
     try {
-        const res = await fetch('/api/admin/models');
-        const models = await res.json();
+        const res = await fetch('/static/live2d/models.json?t=' + Date.now());
+        const data = await res.json();
+        const models = (data.models || []).filter(m => m.type === 'live2d' && m.modelUrl);
         const listDiv = document.getElementById('modelList');
         if (!listDiv) return;
         listDiv.innerHTML = '';
+        
         models.forEach((model) => {
             const item = document.createElement('div');
+            const isCustom = model.custom === true;
             item.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:10px; border-bottom:1px solid #1f2937;';
-            if (model.type === 'svg') {
-                item.innerHTML = '<span>🧑 <strong>默认导游小灵</strong> (内置)</span>';
-            } else {
-                item.innerHTML = `
-                    <span style="display:flex; align-items:center; gap:10px;">
-                        <img src="${model.url}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22%3E%3Crect width=%2240%22 height=%2240%22 fill=%22%23333%22/%3E%3Ctext x=%225%22 y=%2225%22 fill=%22white%22%3E?%3C/text%3E%3C/svg%3E'">
-                        ${model.name}
-                    </span>
-                    <button class="btn" onclick="deleteModel('${model.id}')" style="background:#f44336; border-color:#f44336;">删除</button>
-                `;
-            }
+            item.innerHTML = `
+                <span style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:24px;">🎭</span>
+                    <div>
+                        <div style="font-weight:bold; color:white;">${model.name}</div>
+                        <div style="font-size:12px; color:#6b7280;">${isCustom ? '自定义' : '内置'}</div>
+                    </div>
+                </span>
+                ${isCustom ? '<button class="btn" onclick="deleteModel(\''+model.id+'\')" style="background:#f44336; border-color:#f44336;">删除</button>' : '<span style="color:#6b7280; font-size:12px;">不可删除</span>'}
+            `;
             listDiv.appendChild(item);
         });
+        
+        if (models.length === 0) {
+            listDiv.innerHTML = '<div style="text-align:center; color:#6b7280; padding:20px;">暂无模型，请上传 Live2D 模型</div>';
+        }
     } catch (e) {
         console.error('加载模型列表失败', e);
+        document.getElementById('modelList').innerHTML = '<div style="text-align:center; color:#f44336; padding:20px;">加载失败</div>';
     }
 }
 
-async function uploadModel() {
-    const file = document.getElementById('modelFile').files[0];
-    if (!file) return alert('请选择图片文件');
-    const form = new FormData();
-    form.append('file', file);
+async function handleModelUpload(files) {
+    if (files.length === 0) return;
+    
     const status = document.getElementById('modelUploadStatus');
-    status.textContent = '上传中...';
-    const res = await fetch('/api/admin/models/upload', { method: 'POST', body: form });
-    const data = await res.json();
-    if (data.url) {
-        status.textContent = '上传成功';
-        loadModels();
-    } else {
-        status.textContent = '上传失败: ' + data.error;
+    for (var i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.name.endsWith('.zip')) {
+            showToast('仅支持 ZIP 格式文件', 'error');
+            continue;
+        }
+        
+        const form = new FormData();
+        form.append('file', file);
+        status.textContent = '正在上传: ' + file.name + '...';
+        
+        try {
+            const res = await fetch('/api/admin/upload-live2d', { method: 'POST', body: form });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                showToast('上传成功: ' + data.model.name, 'success');
+            } else {
+                showToast(data.error || '上传失败', 'error');
+            }
+        } catch (e) {
+            showToast('上传失败', 'error');
+        }
     }
-    setTimeout(() => { status.textContent = ''; }, 3000);
+    
+    status.textContent = '';
+    loadModels();
 }
 
-async function deleteModel(filename) {
-    if (!confirm('确定要删除这个形象吗？')) return;
-    await fetch(`/api/admin/models/${filename}`, { method: 'DELETE' });
-    loadModels();
+// 文件选择事件
+document.getElementById('modelFile').addEventListener('change', function(e) {
+    handleModelUpload(e.target.files);
+});
+
+// 拖拽上传支持
+var uploadZone = document.getElementById('uploadZone');
+if (uploadZone) {
+    uploadZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadZone.style.borderColor = '#FFD700';
+    });
+    uploadZone.addEventListener('dragleave', function() {
+        uploadZone.style.borderColor = '#2a3347';
+    });
+    uploadZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadZone.style.borderColor = '#2a3347';
+        handleModelUpload(e.dataTransfer.files);
+    });
+}
+
+async function deleteModel(modelId) {
+    if (!confirm('确定要删除这个自定义形象吗？')) return;
+    
+    try {
+        const res = await fetch('/api/admin/delete-live2d/' + modelId, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            showToast('删除成功', 'success');
+            loadModels();
+        } else {
+            showToast(data.error || '删除失败', 'error');
+        }
+    } catch (e) {
+        showToast('删除失败', 'error');
+    }
 }
 
 // 当切换到模型管理页时自动加载列表

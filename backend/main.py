@@ -120,8 +120,10 @@ async def text_to_speech(req: ChatRequest):
         tts_start = time.time()
         tts.synthesize(preset, reply_audio, voice=req.voice)
         tts_time = time.time() - tts_start
-        print(f"⏱️ 预设回答 - TTS: {tts_time:.2f}s, 总耗时: {time.time()-start:.2f}s")
-        return {"question": req.text, "answer": preset, "audio_url": f"/api/audio/{os.path.basename(reply_audio)}"}
+        duration = time.time() - start
+        print(f"[TIMER] Preset reply - TTS: {tts_time:.2f}s, Total: {duration:.2f}s")
+        logger.add(req.text, preset, duration=duration, source="tts")
+        return {"question": req.text, "answer": preset, "audioUrl": f"/api/audio/{os.path.basename(reply_audio)}"}
     
     # RAG问答路径
     rag_start = time.time()
@@ -136,13 +138,13 @@ async def text_to_speech(req: ChatRequest):
     tts_time = time.time() - tts_start
     
     duration = time.time() - start
-    print(f"⏱️ RAG: {rag_time:.2f}s, TTS: {tts_time:.2f}s, 总耗时: {duration:.2f}s")
+    print(f"[TIMER] RAG: {rag_time:.2f}s, TTS: {tts_time:.2f}s, Total: {duration:.2f}s")
     
     logger.add(req.text, clean_answer, duration=duration, source="tts")
     return {
         "question": result['question'],
         "answer": clean_answer,
-        "audio_url": f"/api/audio/{os.path.basename(reply_audio)}"
+        "audioUrl": f"/api/audio/{os.path.basename(reply_audio)}"
     }
 
 @app.post("/api/chat/text")
@@ -150,6 +152,8 @@ async def text_chat(req: ChatRequest):
     start = time.time()
     preset = get_preset_reply(req.text)
     if preset:
+        duration = time.time() - start
+        logger.add(req.text, preset, duration=duration, source="text")
         return {"question": req.text, "answer": preset, "sources": []}
     result = rag.answer(req.text)
     clean_answer = remove_emoji(result['answer'])
@@ -173,7 +177,9 @@ async def voice_chat(file: UploadFile = File(...)):
     if preset:
         reply_audio = f"../data/processed/reply_{uuid.uuid4().hex[:8]}.wav"
         tts.synthesize(preset, reply_audio)
-        return {"user_text": user_text, "reply_text": preset, "audio_url": f"/api/audio/{os.path.basename(reply_audio)}"}
+        duration = time.time() - start
+        logger.add(user_text, preset, duration=duration, source="voice")
+        return {"user_text": user_text, "reply_text": preset, "audioUrl": f"/api/audio/{os.path.basename(reply_audio)}"}
     result = rag.answer(user_text)
     clean_answer = remove_emoji(result['answer'])
     reply_audio = f"../data/processed/reply_{uuid.uuid4().hex[:8]}.wav"
@@ -183,7 +189,7 @@ async def voice_chat(file: UploadFile = File(...)):
     return {
         "user_text": user_text,
         "reply_text": clean_answer,
-        "audio_url": f"/api/audio/{os.path.basename(reply_audio)}"
+        "audioUrl": f"/api/audio/{os.path.basename(reply_audio)}"
     }
 
 @app.get("/api/audio/{filename}")
@@ -241,7 +247,7 @@ async def image_chat(text: str = Form(""), file: UploadFile = File(...)):
     
     return {
         "answer": clean_answer,
-        "audio_url": f"/api/audio/{os.path.basename(tts_audio)}"
+        "audioUrl": f"/api/audio/{os.path.basename(tts_audio)}"
     }
 
 
@@ -551,5 +557,5 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 http://localhost:8000 | 管理: http://localhost:8000/admin")
+    print("[SERVER] Running at http://localhost:8000 | Admin: http://localhost:8000/admin")
     uvicorn.run(app, host="0.0.0.0", port=8000)

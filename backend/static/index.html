@@ -328,12 +328,14 @@ function addMessage(role,text,emotionTag){
   msgs.scrollTop=msgs.scrollHeight;
 }
 
-// ===== 获取 AI 回复（使用 /api/chat/tts）=====
+  // ===== 获取 AI 回复（使用 /api/chat/tts）=====
 async function getAIReply(question){
   var typing=document.getElementById('typing');
   typing.classList.add('show');
 
   try{
+    console.log('[DEBUG] 开始获取AI回复:', { question, isLive2DActive });
+    
     var res=await fetch('/api/chat/tts',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -343,7 +345,9 @@ async function getAIReply(question){
     typing.classList.remove('show');
 
     var answer = data.answer || '抱歉，我暂时无法回答这个问题。';
-    var audioUrl = data.audio_url;
+    var audioUrl = data.audioUrl;
+
+    console.log('[DEBUG] AI回复完成:', { question, answer, audioUrl, isLive2DActive, live2dManagerStatus: window.live2dManager?.getStatus?.() });
 
     // 情感分析
     var sentiment=window.sentimentAnalyzer.analyze(answer);
@@ -352,12 +356,32 @@ async function getAIReply(question){
 
     // 播放音频（带口型同步和表情时间线）
     if(audioUrl){
+      console.log('[DEBUG] 调用playAudioFromUrl:', audioUrl);
       playAudioFromUrl(audioUrl, answer);
     } else {
+      console.log('[DEBUG] 无音频URL，仅驱动表情');
       // 无音频时仅驱动表情
       if(isLive2DActive){
         var timeline=window.sentimentAnalyzer.analyzeWithTimeline(answer);
         playExpressionTimeline(timeline);
+      }
+    }
+    
+    // 确保Live2D有反应（即使没有音频）
+    if(isLive2DActive && window.live2dManager && answer){
+      var emotion = window.sentimentAnalyzer.analyze(answer).emotion;
+      window.live2dManager.playExpression(emotion);
+    }
+    
+    // 确保SVG模式下也有口型动画（如果没有音频）
+    if(!isLive2DActive && !audioUrl && answer){
+      var mouth = document.getElementById('svgMouth');
+      if(mouth){
+        mouth.classList.add('speaking');
+        var duration = answer.length * 80;
+        setTimeout(function(){
+          mouth.classList.remove('speaking');
+        }, duration);
       }
     }
   }catch(e){
@@ -369,6 +393,8 @@ async function getAIReply(question){
 
 // ===== 播放音频URL，支持Live2D口型同步和表情时间线 =====
 function playAudioFromUrl(audioUrl, fullText){
+  console.log('[DEBUG] playAudioFromUrl START:', { audioUrl, isLive2DActive, live2dManagerStatus: window.live2dManager?.getStatus?.() });
+
   // 停止当前音频
   if(currentAudio){
     currentAudio.pause();
@@ -378,23 +404,44 @@ function playAudioFromUrl(audioUrl, fullText){
   var audio = new Audio(audioUrl);
   currentAudio = audio;
 
+  audio.addEventListener('loadstart', function(){
+    console.log('[DEBUG] 音频开始加载:', audioUrl);
+  });
+  audio.addEventListener('loadeddata', function(){
+    console.log('[DEBUG] 音频数据加载完成，时长:', audio.duration, '秒');
+  });
+  audio.addEventListener('canplay', function(){
+    console.log('[DEBUG] 音频可以播放');
+  });
+  audio.addEventListener('canplaythrough', function(){
+    console.log('[DEBUG] 音频可以完全播放');
+  });
+
   // Live2D 口型同步 - 在音频创建后立即初始化分析器
   if(isLive2DActive && window.live2dManager){
+    console.log('[DEBUG] 初始化Live2D口型同步');
     try{
       window.live2dManager.initAudioAnalyser(audio);
-    }catch(e){ console.warn('音频分析初始化失败', e); }
+      console.log('[DEBUG] 音频分析器初始化成功');
+    }catch(e){ 
+      console.warn('[DEBUG] 音频分析初始化失败:', e); 
+    }
     
     audio.addEventListener('playing', function(){
+      console.log('[DEBUG] 音频开始播放 - 触发startSpeaking');
       window.live2dManager.startSpeaking();
     });
     
     audio.addEventListener('ended', function(){
+      console.log('[DEBUG] 音频播放结束 - 触发stopSpeaking');
       window.live2dManager.stopSpeaking();
     });
-    audio.addEventListener('error', function(){
+    audio.addEventListener('error', function(e){
+      console.error('[DEBUG] 音频播放错误:', e);
       window.live2dManager.stopSpeaking();
     });
     audio.addEventListener('pause', function(){
+      console.log('[DEBUG] 音频暂停 - 触发stopSpeaking');
       window.live2dManager.stopSpeaking();
     });
   }
@@ -425,9 +472,14 @@ function playAudioFromUrl(audioUrl, fullText){
     }
   }
 
-  setTimeout(function(){
-    audio.play().catch(function(e){ console.warn('音频播放失败', e); });
-  }, 50);
+  audio.play().then(function(){
+    console.log('[DEBUG] 音频播放成功启动');
+  }).catch(function(e){ 
+    console.warn('[DEBUG] 音频播放失败:', e); 
+    if(e.name === 'NotAllowedError'){
+      showToast('浏览器阻止了自动播放，请点击页面后重试');
+    }
+  });
 
   if(fullText && window.sentimentAnalyzer && isLive2DActive){
     var timeline = window.sentimentAnalyzer.analyzeWithTimeline(fullText);
@@ -516,7 +568,7 @@ async function sendVoiceMessage(blob){
     var data=await res.json();
     var userText = data.user_text || '';
     var replyText = data.reply_text || '';
-    var audioUrl = data.audio_url;
+    var audioUrl = data.audioUrl;
 
     if(userText) addMessage('user', userText);
     if(replyText){

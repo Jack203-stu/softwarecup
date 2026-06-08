@@ -45,6 +45,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 ### 4. 访问应用
 
 - 游客端：http://localhost:8000
+- 管理后台：http://localhost:8000/admin
 - 形象管理：http://localhost:8000/static/avatar-manage.html
 
 ## 主要功能
@@ -124,15 +125,37 @@ backend/
 
 ## API 接口
 
+### 游客端接口
+
 | 接口 | 方法 | 说明 |
 |------|------|------|
 | `/` | GET | 主页 |
 | `/api/chat/tts` | POST | 文字转语音问答 |
+| `/api/chat/text` | POST | 纯文字问答 |
 | `/api/chat/voice` | POST | 语音输入问答 |
+| `/api/chat/image` | POST | 图片提问（多模态） |
 | `/api/config/set-voice` | POST | 设置音色 |
 | `/api/config/voices` | GET | 获取音色列表 |
-| `/api/admin/upload-live2d` | POST | 上传自定义形象 |
-| `/api/admin/delete-live2d/{id}` | DELETE | 删除自定义形象 |
+| `/api/feedback` | POST | 提交用户反馈 |
+
+### 管理后台接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/admin` | GET | 管理后台页面 |
+| `/api/admin/dashboard` | GET | 获取运营数据大屏 |
+| `/api/admin/recent` | GET | 获取最近交互记录 |
+| `/api/admin/feedbacks` | GET | 获取用户反馈列表 |
+| `/api/admin/stats/daily` | GET | 获取近7天服务量 |
+| `/api/admin/export` | GET | 导出交互日志（JSON/CSV） |
+| `/api/admin/documents` | GET | 获取知识库文档列表 |
+| `/api/admin/upload-document` | POST | 上传知识库文档 |
+| `/api/admin/rebuild-index` | POST | 重建向量索引 |
+| `/api/admin/upload-live2d` | POST | 上传 Live2D 模型 |
+| `/api/admin/delete-live2d/{id}` | DELETE | 删除自定义 Live2D 模型 |
+| `/api/admin/models` | GET | 获取数字人模型列表 |
+| `/api/admin/models/upload` | POST | 上传模型图片 |
+| `/api/admin/models/{filename}` | DELETE | 删除模型图片 |
 
 ## 技术栈
 
@@ -166,6 +189,37 @@ backend/
 2. 压缩为 ZIP 格式
 3. 在管理页面上传
 4. 上传成功后自动出现在列表中
+
+### 管理后台
+
+访问 http://localhost:8000/admin 进入管理后台，包含以下功能模块：
+
+**📊 数据大屏**
+- 今日服务人次统计
+- 本周累计问答数量
+- 游客满意度（基于用户反馈）
+- 平均响应时间
+- 热门问题 Top 5
+- 近7天服务量柱状图
+- 支持数据导出（JSON/CSV）
+
+**📋 交互历史**
+- 查看最近交互记录
+- 显示提问时间、问题内容和回答内容
+
+**💬 用户反馈**
+- 统计满意/一般/不满意数量
+- 查看所有反馈记录及时间
+
+**📚 知识库管理**
+- 上传新文档（支持 .txt/.docx/.pdf）
+- 查看已上传文档列表
+- 手动重建向量索引
+
+**🎭 模型管理**
+- 上传数字人形象图片
+- 查看已上传模型列表
+- 删除自定义模型
 
 ## 注意事项
 
