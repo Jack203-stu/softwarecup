@@ -291,6 +291,9 @@ import json
 AVATAR_DIR = os.path.join(BASE_DIR, "static", "avatars")
 os.makedirs(AVATAR_DIR, exist_ok=True)
 
+BG_DIR = os.path.join(BASE_DIR, "static", "backgrounds")
+os.makedirs(BG_DIR, exist_ok=True)
+
 @app.post("/api/admin/upload-avatar")
 async def upload_avatar(file: UploadFile = File(...)):
     if file.content_type not in ("image/png", "image/jpeg", "image/gif"):
@@ -300,6 +303,29 @@ async def upload_avatar(file: UploadFile = File(...)):
     with open(filepath, "wb") as f:
         f.write(await file.read())
     return {"url": f"/static/avatars/{filename}", "name": file.filename}
+
+@app.post("/api/admin/upload-background")
+async def upload_background(file: UploadFile = File(...)):
+    if file.content_type not in ("image/png", "image/jpeg", "image/gif"):
+        return {"error": "仅支持 PNG/JPG/GIF 图片"}
+    filename = f"{uuid.uuid4().hex}_{file.filename}"
+    filepath = os.path.join(BG_DIR, filename)
+    with open(filepath, "wb") as f:
+        f.write(await file.read())
+    return {"url": f"/static/backgrounds/{filename}", "name": file.filename}
+
+@app.get("/api/admin/backgrounds")
+async def list_backgrounds():
+    files = os.listdir(BG_DIR) if os.path.exists(BG_DIR) else []
+    return [{"name": f, "url": f"/static/backgrounds/{f}"} for f in files if not f.startswith('.') and f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+
+@app.delete("/api/admin/delete-background/{filename}")
+async def delete_background(filename: str):
+    filepath = os.path.join(BG_DIR, filename)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+        return {"status": "ok"}
+    return {"error": "文件不存在"}
 
 @app.get("/api/admin/avatars")
 async def list_avatars():
