@@ -18,6 +18,15 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:"Microsoft YaHei",sans-serif;background:linear-gradient(180deg,#1a0533,#0d1b3e);height:100vh;display:flex;justify-content:center;align-items:center;overflow:hidden}
 
+#app-loading{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:9999;background-color:#f0f2f5;transition:opacity 0.5s ease-out}
+.loading-content{display:flex;flex-direction:column;align-items:center;gap:24px}
+.koi-cube{width:40px;height:40px;background-color:#409eff;border-radius:8px;animation:koi-bounce 0.8s infinite ease-in-out}
+@keyframes koi-bounce{0%,100%{transform:translateY(0) scale(1,1)}40%{transform:translateY(-20px) scale(1.15,0.85)}60%{transform:translateY(4px) scale(0.9,1.1)}80%{transform:translateY(0) scale(1,1)}}
+.loading-bar{width:160px;height:4px;background-color:#e0e6ed;border-radius:2px;overflow:hidden}
+.loading-bar-fill{height:100%;background-color:#409eff;border-radius:2px;animation:loading-progress 1.5s infinite ease-in-out;width:0}
+@keyframes loading-progress{0%{width:0%;margin-left:-30%}50%{width:50%;margin-left:25%}100%{width:100%;margin-left:100%}}
+.loading-text{font-size:14px;color:#909399;margin-top:8px}
+
 /* 星空背景 */
 .stars{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0}
 .star{position:absolute;background:white;border-radius:50%;animation:twinkle 2s infinite alternate}
@@ -123,6 +132,8 @@ body{font-family:"Microsoft YaHei",sans-serif;background:linear-gradient(180deg,
 </style>
 </head>
 <body>
+
+<div id="app-loading"><div class="loading-content"><div class="koi-cube"></div><div class="loading-bar"><div class="loading-bar-fill"></div></div><div class="loading-text">游客端加载中...</div></div></div>
 
 <!-- 星空 -->
 <div class="stars" id="stars"></div>
@@ -247,6 +258,7 @@ async function loadModelsConfig(){
     console.error('加载模型配置失败:',e);
     restoreSVG();
   }
+  hideLoading();
 }
 
 // ===== 加载 Live2D 模型（修正路径映射）=====
@@ -590,10 +602,24 @@ async function sendVoiceMessage(blob){
 }
 
 // ===== 初始化 =====
+var loadingStartTime = Date.now();
+
 window.onload=function(){
   loadModelsConfig();
   fetch('/api/visit');
 };
+
+function hideLoading(){
+  var elapsed = Date.now() - loadingStartTime;
+  var delay = Math.max(2500 - elapsed, 500);
+  setTimeout(function(){
+    var loading=document.getElementById('app-loading');
+    if(loading){
+      loading.style.opacity='0';
+      setTimeout(function(){loading.remove()},500);
+    }
+  }, delay);
+}
 
 // ===== 页面卸载清理 =====
 window.onbeforeunload=function(){
