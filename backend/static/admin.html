@@ -425,6 +425,88 @@ document.addEventListener('DOMContentLoaded',function(){
     if(box) window.feedMarquee=new window.AutoScrollMarquee(box,{speed:35});
 });
 
+// ===== 图表 tooltip 自动轮播 + 鼠标悬停 =====
+window.AutoTooltip=(function(){
+    function AutoTooltip(chart){
+        this.chart=chart;
+        this._timer=null;
+        this._index=0;
+        this._hovered=false;
+        this._onMove=this._onMove.bind(this);
+        this._onLeave=this._onLeave.bind(this);
+        try{
+            chart.getZr().on('mousemove',this._onMove);
+            chart.getZr().on('mouseleave',this._onLeave);
+        }catch(e){}
+        // 在 container 上也绑一份鼠标离开，做双重保险
+        try{
+            var dom=chart.getDom&&chart.getDom();
+            var parent=dom&&dom.parentElement;
+            if(parent){
+                this._container=parent;
+                parent.addEventListener('mouseleave',this._onLeave);
+            }
+        }catch(e){}
+        var self=this;
+        setTimeout(function(){self.start()},200);
+    }
+    AutoTooltip.prototype._onMove=function(){
+        if(this._hovered) return;
+        this._hovered=true;
+        clearInterval(this._timer);
+        this._timer=null;
+        try{this.chart.dispatchAction({type:'hideTip'})}catch(e){}
+    };
+    AutoTooltip.prototype._onLeave=function(){
+        if(!this._hovered) return;
+        this._hovered=false;
+        this._index=0;
+        clearInterval(this._timer);
+        this._timer=null;
+        this.start();
+    };
+    AutoTooltip.prototype.start=function(){
+        if(!this.chart || this._hovered) return;
+        var self=this;
+        clearInterval(this._timer);
+        this._timer=setInterval(function(){self._tick()},1000);
+    };
+    AutoTooltip.prototype._tick=function(){
+        if(this._hovered || !this.chart) return;
+        try{
+            var opts=this.chart.getOption();
+            var series=opts.series||[];
+            var maxLen=0;
+            for(var i=0;i<series.length;i++){
+                var data=(series[i].data||[]);
+                if(data.length>maxLen) maxLen=data.length;
+            }
+            if(maxLen===0) return;
+            if(this._index>=maxLen){this._index=0}
+            var firstIdx=-1;
+            for(var k=0;k<series.length;k++){
+                if((series[k].data||[]).length>=maxLen){firstIdx=k;break}
+            }
+            var si=firstIdx<0?0:firstIdx;
+            this.chart.dispatchAction({
+                type:'showTip',
+                seriesIndex:si,
+                dataIndex:this._index
+            });
+            this._index++;
+        }catch(e){}
+    };
+    AutoTooltip.prototype.stop=function(){
+        clearInterval(this._timer);this._timer=null;
+        try{this.chart.getZr().off('mousemove',this._onMove)}catch(e){}
+        try{this.chart.getZr().off('mouseleave',this._onLeave)}catch(e){}
+        if(this._container){
+            try{this._container.removeEventListener('mouseleave',this._onLeave)}catch(e){}
+        }
+    };
+    return AutoTooltip;
+})();
+
 // ===== Header 时钟 =====
 function tickClock(){
     var d=new Date();
@@ -458,6 +540,7 @@ function showPage(name){
 
 // ===== 数据大屏 =====
 let barChart=null,lineChart=null,sentimentPieChart=null,sentimentLineChart=null,dailyBarChart=null;
+window._adminTooltip={bar:null,line:null,daily:null};
 
 async function loadDashboard(){
     var res=await fetch('/api/admin/dashboard');
@@ -495,6 +578,8 @@ async function loadDashboard(){
                     {offset:0,color:'#5ff0ff'},{offset:1,color:'#0b8bd6'}])}}
             }]
         });
+        if(!window._adminTooltip.bar) window._adminTooltip.bar=new window.AutoTooltip(barChart);
+        else window._adminTooltip.bar.start();
     }
 
     // 折线图（访问+问答）
@@ -516,6 +601,8 @@ async function loadDashboard(){
                     areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(255,184,107,.3)'},{offset:1,color:'rgba(255,184,107,0)'}])}}
             ]
         });
+        if(!window._adminTooltip.line) window._adminTooltip.line=new window.AutoTooltip(lineChart);
+        else window._adminTooltip.line.start();
     }
 
     // 情感饼图
@@ -615,6 +702,8 @@ async function loadDashboard(){
                     {offset:0,color:'#5ff0ff'},{offset:1,color:'#0b8bd6'}])}}
             }]
         });
+        if(!window._adminTooltip.daily) window._adminTooltip.daily=new window.AutoTooltip(dailyBarChart);
+        else window._adminTooltip.daily.start();
     }
 }
 
