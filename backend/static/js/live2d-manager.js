@@ -189,7 +189,7 @@ class Live2DManager {
 
             // 创建 PIXI 应用
             const width = container.clientWidth || 380;
-            const height = 450;
+            const height = container.clientHeight || 500;
             this.app = new PIXI.Application({
                 width,
                 height,
@@ -215,7 +215,7 @@ class Live2DManager {
                 this.app.screen.width / model.width,
                 this.app.screen.height / model.height
             );
-            model.scale.set(scale * 0.85);
+            model.scale.set(scale * 0.95);
 
             // 注入口型同步到模型更新循环
             this._injectMouthSync();

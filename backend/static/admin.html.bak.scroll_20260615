@@ -11,7 +11,6 @@
 *::-webkit-scrollbar-track{background:#02060f}
 *::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#0a6fb0,#074f80);border-radius:4px;border:1px solid rgba(0,180,255,.18)}
 *::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,#00b4ff,#0a6fb0)}
-#topQuestions::-webkit-scrollbar{display:none}
 body{background:
             radial-gradient(ellipse at 20% 0%,rgba(0,120,255,.15),transparent 60%),
             radial-gradient(ellipse at 80% 100%,rgba(0,230,255,.12),transparent 60%),
@@ -81,13 +80,8 @@ body{background:
         .cp-chart .chart-container{flex:1;min-height:0}
 
         /* 右栏：实时 Feed */
-        .feed-list{flex:1;min-height:0;position:relative;overflow:hidden}
-        .feed-list .feed-track{position:absolute;left:0;right:0;top:0;will-change:transform}
-        .feed-list.feed-paused{overflow-y:auto}
-        .feed-list.feed-paused .feed-track{position:relative;transform:none}
-        .feed-list.feed-paused .feed-marquee-clone{display:none}
-        .feed-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px dashed rgba(0,160,240,.18);font-size:12px;transition:background .2s}
-        .feed-item:hover{background:rgba(0,180,255,.06)}
+        .feed-list{flex:1;overflow-y:auto;min-height:0}
+        .feed-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px dashed rgba(0,160,240,.18);font-size:12px}
         .feed-item .dot{width:6px;height:6px;background:#00eaff;border-radius:50%;margin-top:5px;flex-shrink:0;box-shadow:0 0 6px #00eaff}
         .feed-item .dot.good{background:#6effa0;box-shadow:0 0 6px #6effa0}
         .feed-item .dot.warn{background:#ffb86b;box-shadow:0 0 6px #ffb86b}
@@ -215,7 +209,7 @@ body{background:
         </div>
         <div class="cp-panel" style="flex:1;min-height:0;display:flex;flex-direction:column">
             <div class="cp-title">热门问题 Top5</div>
-            <div id="topQuestions" style="flex:1;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none"></div>
+            <div id="topQuestions" style="flex:1;overflow-y:auto"></div>
         </div>
         <div class="cp-panel" style="flex:1;min-height:0;display:flex;flex-direction:column">
             <div class="cp-title">情感趋势（近7天）</div>
@@ -278,153 +272,6 @@ body{background:
 </div>
 
 <script>
-// ===== 实时交互动态 · 自动无缝循环滚动 + 悬停暂停 =====
-window.AutoScrollMarquee=(function(){
-    function AutoScrollMarquee(el,opts){
-        this.el=el;
-        this.opts=opts||{};
-        this.speed=this.opts.speed||30;
-        this._raf=0;
-        this._paused=false;
-        this._y=0;
-        this._lastTs=0;
-        this._wrap();
-        this._bindEvents();
-        this._maybeStart();
-    }
-    AutoScrollMarquee.prototype._wrap=function(){
-        var el=this.el;
-        if(!el.dataset.marqueeWrapped){
-            var track=document.createElement('div');
-            track.className='feed-track';
-            var body=document.createElement('div');
-            body.className='feed-list-body';
-            while(el.firstChild) body.appendChild(el.firstChild);
-            track.appendChild(body);
-            el.appendChild(track);
-            el.dataset.marqueeWrapped='1';
-        }
-        this.track=el.querySelector('.feed-track');
-        this.firstBlock=this.track&&this.track.querySelector('.feed-list-body');
-    };
-    AutoScrollMarquee.prototype._bindEvents=function(){
-        var self=this;
-        this._onEnter=function(){self.pause();};
-        this._onLeave=function(){self.resume();};
-        this.el.addEventListener('mouseenter',this._onEnter);
-        this.el.addEventListener('mouseleave',this._onLeave);
-    };
-    AutoScrollMarquee.prototype._isOverflow=function(){
-        var el=this.el, first=this.firstBlock;
-        return first && first.offsetHeight>el.clientHeight+1;
-    };
-    AutoScrollMarquee.prototype._ensureClone=function(){
-        if(this._clone && this._clone.parentNode) return;
-        this._clone=this.firstBlock.cloneNode(true);
-        if(this._clone.classList) this._clone.classList.add('feed-marquee-clone');
-        var items=this._clone.querySelectorAll&&this._clone.querySelectorAll('.feed-item');
-        if(items) items.forEach(function(n){n.classList.add('feed-marquee-clone')});
-        this.track.appendChild(this._clone);
-    };
-    AutoScrollMarquee.prototype._removeClone=function(){
-        if(this._clone && this._clone.parentNode){
-            this._clone.parentNode.removeChild(this._clone);
-        }
-        this._clone=null;
-    };
-    AutoScrollMarquee.prototype._setY=function(y){
-        this._y=y;
-        this.track.style.transform='translateY('+(-y)+'px)';
-    };
-    AutoScrollMarquee.prototype._step=function(ts){
-        if(this._paused) return;
-        var el=this.el, track=this.track, first=this.firstBlock;
-        if(!track || !first) return;
-        var H=first.offsetHeight;
-        var C=el.clientHeight;
-        if(H<=C){
-            this._removeClone();
-            this._setY(0);
-            this._schedule();
-            return;
-        }
-        this._ensureClone();
-        if(!this._lastTs){
-            this._lastTs=ts||Date.now();
-        }else{
-            var now=ts||Date.now();
-            var dt=Math.min(100,now-this._lastTs);
-            this._lastTs=now;
-            this._y+=this.speed*(dt/1000);
-            while(this._y>=H){
-                this._y-=H;
-            }
-            this._setY(this._y);
-        }
-        this._schedule();
-    };
-    AutoScrollMarquee.prototype._schedule=function(){
-        var self=this;
-        clearTimeout(this._raf);
-        this._raf=setTimeout(function(){
-            self._step(Date.now());
-        },16);
-    };
-    AutoScrollMarquee.prototype._maybeStart=function(){
-        clearTimeout(this._raf);
-        this._removeClone();
-        this._y=0;
-        this._lastTs=0;
-        this._setY(0);
-        if(this._isOverflow()){
-            this._ensureClone();
-        }
-        this._schedule();
-    };
-    AutoScrollMarquee.prototype.pause=function(){
-        this._paused=true;
-        clearTimeout(this._raf);
-        this.el.classList.add('feed-paused');
-    };
-    AutoScrollMarquee.prototype.resume=function(){
-        this._paused=false;
-        this._lastTs=0;
-        this.el.classList.remove('feed-paused');
-        this._schedule();
-    };
-    AutoScrollMarquee.prototype.refresh=function(newHtml){
-        clearTimeout(this._raf);
-        this._removeClone();
-        this.el.classList.remove('feed-paused');
-        this._paused=false;
-        this._y=0;
-        this._lastTs=0;
-        var wasWrapped=!!this.el.dataset.marqueeWrapped;
-        if(wasWrapped){
-            var track=this.el.querySelector('.feed-track');
-            if(track) track.outerHTML='';
-            this.el.dataset.marqueeWrapped='';
-        }
-        this.el.innerHTML=newHtml||'';
-        this._wrap();
-        this._maybeStart();
-    };
-    AutoScrollMarquee.prototype.destroy=function(){
-        clearTimeout(this._raf);
-        this._removeClone();
-        this.el.classList.remove('feed-paused');
-        this.el.removeEventListener('mouseenter',this._onEnter);
-        this.el.removeEventListener('mouseleave',this._onLeave);
-    };
-    return AutoScrollMarquee;
-})();
-
-window.feedMarquee=null;
-document.addEventListener('DOMContentLoaded',function(){
-    var box=document.getElementById('realtimeFeed');
-    if(box) window.feedMarquee=new window.AutoScrollMarquee(box,{speed:35});
-});
-
 // ===== Header 时钟 =====
 function tickClock(){
     var d=new Date();
@@ -457,7 +304,7 @@ function showPage(name){
 }
 
 // ===== 数据大屏 =====
-let barChart=null,lineChart=null,sentimentPieChart=null,sentimentLineChart=null,dailyBarChart=null;
+let barChart=null,lineChart=null,sentimentPieChart=null,sentimentLineChart=null;
 
 async function loadDashboard(){
     var res=await fetch('/api/admin/dashboard');
@@ -560,30 +407,20 @@ async function loadDashboard(){
         });
     }
 
-    // 实时交互动态（取最近日志，显示全部）
+    // 实时交互动态（取最近日志，最多10条）
     var feed=document.getElementById('realtimeFeed');
-    var feedHtml='';
     try{
-        var hres=await fetch('/api/admin/recent?limit=500');
+        var hres=await fetch('/api/admin/recent');
         var hlogs=await hres.json();
         hlogs=hlogs.value||hlogs;
-        feedHtml=hlogs.slice().reverse().map(log=>{
+        feed.innerHTML=hlogs.slice(-10).reverse().map(log=>{
             var ts=new Date(log.timestamp*1000);
             var pad=x=>x<10?'0'+x:x;
             var t=pad(ts.getHours())+':'+pad(ts.getMinutes())+':'+pad(ts.getSeconds());
-            var q=(log.question||'').slice(0,60);
+            var q=(log.question||'').slice(0,28);
             return `<div class="feed-item"><span class="dot"></span><span class="time">${t}</span><span class="content"><span class="q">Q:${q}</span></span></div>`;
         }).join('');
-    }catch(e){feedHtml='<div style="color:#6ea5d6;font-size:12px">暂无交互记录</div>'}
-
-    if(!window.feedMarquee && feed){
-        window.feedMarquee=new AutoScrollMarquee(feed,{speed:28});
-    }
-    if(window.feedMarquee){
-        window.feedMarquee.refresh(feedHtml);
-    }else if(feed){
-        feed.innerHTML=feedHtml;
-    }
+    }catch(e){feed.innerHTML='<div style="color:#6ea5d6;font-size:12px">暂无交互记录</div>'}
 
     // 热门问题
     var topDiv=document.getElementById('topQuestions');
@@ -594,28 +431,17 @@ async function loadDashboard(){
     });
     if(!(data.top_questions||[]).length) topDiv.innerHTML='<div style="color:#6ea5d6;font-size:12px;text-align:center;padding:10px 0">暂无数据</div>';
 
-    // 近14天柱状（ECharts + tooltip）
+    // 近14天柱状
     var today=new Date();
     var dayLabels=[];
     for(let i=13;i>=0;i--){var d=new Date(today);d.setDate(d.getDate()-i);dayLabels.push((d.getMonth()+1)+'/'+d.getDate())}
     var dailyData=data.daily_visits||[];
-    if(!dailyBarChart && document.getElementById('dailyChart'))
-        dailyBarChart=echarts.init(document.getElementById('dailyChart'));
-    if(dailyBarChart){
-        dailyBarChart.setOption({
-            tooltip:{trigger:'axis',backgroundColor:'#04142a',borderColor:'#0a6fb0',textStyle:{color:'#eaf6ff'},axisPointer:{type:'shadow'}},
-            grid:{left:28,right:8,top:18,bottom:26,containLabel:false},
-            xAxis:{type:'category',data:dayLabels,axisLine:{lineStyle:{color:'#0a6fb0'}},axisLabel:{color:'#4f7aa4',fontSize:10,margin:2},axisTick:{show:false}},
-            yAxis:{type:'value',axisLine:{show:false},axisLabel:{color:'#6ea5d6',fontSize:10},splitLine:{lineStyle:{color:'rgba(10,111,176,.18)'}}},
-            series:[{name:'访问量',type:'bar',data:dailyData,barWidth:'58%',
-                itemStyle:{borderRadius:[2,2,0,0],color:new echarts.graphic.LinearGradient(0,0,0,1,[
-                    {offset:0,color:'#00eaff'},{offset:1,color:'#0a6fb0'}])},
-                label:{show:true,position:'top',color:'#00eaff',fontSize:10,fontFamily:'Consolas,monospace'},
-                emphasis:{itemStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[
-                    {offset:0,color:'#5ff0ff'},{offset:1,color:'#0b8bd6'}])}}
-            }]
-        });
-    }
+    var maxCount=Math.max.apply(null,dailyData.concat([1]));
+    var chartDiv=document.getElementById('dailyChart');
+    chartDiv.innerHTML=dailyData.map((c,i)=>{
+        var hgt=(c/maxCount*100)+'%';
+        return `<div class="bar" style="height:${hgt}"><span>${c}</span><div class="label">${dayLabels[i]}</div></div>`;
+    }).join('');
 }
 
 function exportData(format){
