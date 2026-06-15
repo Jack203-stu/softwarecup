@@ -1,5 +1,5 @@
 import json, os, time, random
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from collections import Counter
 from threading import Lock
 
@@ -172,7 +172,47 @@ class InteractionLogger:
             "last_week_visits": last_week_visits,
             "week_change_pct": week_change_pct,
             "daily_visits": daily_visits,
-            "is_mock": (len(visits) == 0 and len(logs) == 0)
+            "is_mock": (len(visits) == 0 and len(logs) == 0),
+            "sentiment": self._sentiment_stats()
+        }
+
+    def _sentiment_stats(self):
+        fb = self._read(self.feedback_path)
+        today = date.today()
+        daily_counts = []
+        for i in range(6, -1, -1):
+            day = today - timedelta(days=i)
+            dkey = day.strftime("%Y-%m-%d")
+            cnt = {"good": 0, "neutral": 0, "bad": 0}
+            for f in fb:
+                if f.get("date", "") == dkey:
+                    r = f.get("rating", "")
+                    if r in cnt:
+                        cnt[r] += 1
+            daily_counts.append({
+                "date": dkey[5:],
+                "good": cnt["good"],
+                "neutral": cnt["neutral"],
+                "bad": cnt["bad"]
+            })
+        totals = {"good": 0, "neutral": 0, "bad": 0}
+        for f in fb:
+            r = f.get("rating", "")
+            if r in totals:
+                totals[r] += 1
+        total_all = sum(totals.values())
+        if total_all == 0:
+            totals = {"good": 8, "neutral": 3, "bad": 1}
+            mock_dist = [2, 0, 2, 1, 2, 3, 2]
+            mock_neu = [1, 0, 1, 0, 1, 0, 0]
+            mock_bad = [0, 0, 0, 1, 0, 0, 0]
+            for i, c in enumerate(daily_counts):
+                c["good"] = mock_dist[i]
+                c["neutral"] = mock_neu[i]
+                c["bad"] = mock_bad[i]
+        return {
+            "total": totals,
+            "daily": daily_counts
         }
 
     def get_recent(self, limit=20):

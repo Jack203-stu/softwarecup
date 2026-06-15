@@ -93,6 +93,16 @@
                 <div id="visitLineChart" class="chart-container"></div>
             </div>
         </div>
+        <div class="chart-row-large">
+            <div class="chart-card">
+                <h3>游客情感分布</h3>
+                <div id="sentimentPieChart" class="chart-container"></div>
+            </div>
+            <div class="chart-card">
+                <h3>情感趋势（近7天）</h3>
+                <div id="sentimentLineChart" class="chart-container"></div>
+            </div>
+        </div>
         <div class="chart-row">
             <div class="chart-card">
                 <h3>热门问题 Top 5</h3>
@@ -176,7 +186,7 @@ function showPage(name){
 }
 
 // 数据大屏
-let barChart = null, lineChart = null;
+let barChart = null, lineChart = null, sentimentPieChart = null, sentimentLineChart = null;
 
 async function loadDashboard(){
     const res = await fetch('/api/admin/dashboard');
@@ -277,6 +287,54 @@ async function loadDashboard(){
                         {offset:1,color:'rgba(245,175,25,0)'}
                     ])}
                 }
+            ]
+        });
+    }
+
+    // === 游客情感分布（饼图） ===
+    if(!sentimentPieChart && document.getElementById('sentimentPieChart'))
+        sentimentPieChart = echarts.init(document.getElementById('sentimentPieChart'));
+    const sent = data.sentiment || {total:{good:0,neutral:0,bad:0},daily:[]};
+    const totalCount = (sent.total.good||0)+(sent.total.neutral||0)+(sent.total.bad||0);
+    if(sentimentPieChart){
+        sentimentPieChart.setOption({
+            tooltip:{trigger:'item',backgroundColor:'#1f2937',borderColor:'#374151',textStyle:{color:'#e5e7eb'},formatter:'{b}: {c} ({d}%)'},
+            legend:{orient:'horizontal',bottom:0,textStyle:{color:'#9ca3af'}},
+            series:[{
+                type:'pie',
+                radius:['40%','70%'],
+                center:['50%','45%'],
+                avoidLabelOverlap:true,
+                itemStyle:{borderRadius:8,borderColor:'#1a2035',borderWidth:2},
+                label:{show:true,color:'#9ca3af',formatter:'{b}\n{d}%'},
+                data:[
+                    {name:'正面',value:sent.total.good||0,itemStyle:{color:'#4caf50'}},
+                    {name:'中性',value:sent.total.neutral||0,itemStyle:{color:'#ff9800'}},
+                    {name:'负面',value:sent.total.bad||0,itemStyle:{color:'#f44336'}}
+                ]
+            }]
+        });
+    }
+
+    // === 情感趋势（折线图 近7天） ===
+    if(!sentimentLineChart && document.getElementById('sentimentLineChart'))
+        sentimentLineChart = echarts.init(document.getElementById('sentimentLineChart'));
+    const dailyArr = sent.daily || [];
+    const sentDates = dailyArr.map(x => x.date);
+    const sentGood = dailyArr.map(x => x.good || 0);
+    const sentNeu = dailyArr.map(x => x.neutral || 0);
+    const sentBad = dailyArr.map(x => x.bad || 0);
+    if(sentimentLineChart){
+        sentimentLineChart.setOption({
+            tooltip:{trigger:'axis',backgroundColor:'#1f2937',borderColor:'#374151',textStyle:{color:'#e5e7eb'}},
+            legend:{data:['正面','中性','负面'],textStyle:{color:'#9ca3af'},top:0},
+            grid:{left:40,right:20,top:50,bottom:30},
+            xAxis:{type:'category',data:sentDates,axisLine:{lineStyle:{color:'#374151'}},axisLabel:{color:'#9ca3af'}},
+            yAxis:{type:'value',axisLine:{show:false},axisLabel:{color:'#9ca3af'},splitLine:{lineStyle:{color:'#1f2937'}}},
+            series:[
+                {name:'正面',type:'line',stack:'total',data:sentGood,smooth:true,lineStyle:{color:'#4caf50'},itemStyle:{color:'#4caf50'},areaStyle:{color:'rgba(76,175,80,0.25)'}},
+                {name:'中性',type:'line',stack:'total',data:sentNeu,smooth:true,lineStyle:{color:'#ff9800'},itemStyle:{color:'#ff9800'},areaStyle:{color:'rgba(255,152,0,0.2)'}},
+                {name:'负面',type:'line',stack:'total',data:sentBad,smooth:true,lineStyle:{color:'#f44336'},itemStyle:{color:'#f44336'},areaStyle:{color:'rgba(244,67,54,0.2)'}}
             ]
         });
     }
