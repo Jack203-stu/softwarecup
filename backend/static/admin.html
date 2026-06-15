@@ -3,582 +3,594 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>管理后台 | 灵山胜境AI导游</title>
+    <title>运营驾驶舱 | 灵山胜境AI导游</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
-        body{font-family:"Microsoft YaHei",sans-serif;background:#0a0e17;color:#c0c8d8;min-height:100vh;display:flex}
-        #app-loading{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:9999;background-color:#f0f2f5;transition:opacity 0.5s ease-out}
+        html,body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#02060f;color:#b8c4d6;min-height:100vh;scrollbar-width:thin;scrollbar-color:#0a6fb0 #02060f}
+*::-webkit-scrollbar{width:8px;height:8px}
+*::-webkit-scrollbar-track{background:#02060f}
+*::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#0a6fb0,#074f80);border-radius:4px;border:1px solid rgba(0,180,255,.18)}
+*::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,#00b4ff,#0a6fb0)}
+body{background:
+            radial-gradient(ellipse at 20% 0%,rgba(0,120,255,.15),transparent 60%),
+            radial-gradient(ellipse at 80% 100%,rgba(0,230,255,.12),transparent 60%),
+            linear-gradient(180deg,#02060f 0%,#050d1a 100%);
+            background-attachment:fixed;overflow-x:hidden}
+        body::before{content:'';position:fixed;inset:0;pointer-events:none;
+            background-image:
+                linear-gradient(rgba(0,180,255,.06) 1px,transparent 1px),
+                linear-gradient(90deg,rgba(0,180,255,.06) 1px,transparent 1px);
+            background-size:40px 40px;z-index:0}
+
+        #app-loading{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:9999;background:#02060f}
         .loading-content{display:flex;flex-direction:column;align-items:center;gap:24px}
-        .koi-cube{width:40px;height:40px;background-color:#409eff;border-radius:8px;animation:koi-bounce 0.8s infinite ease-in-out}
+        .koi-cube{width:40px;height:40px;background-color:#00b4ff;border-radius:8px;animation:koi-bounce 0.8s infinite ease-in-out;box-shadow:0 0 20px rgba(0,180,255,.7)}
         @keyframes koi-bounce{0%,100%{transform:translateY(0) scale(1,1)}40%{transform:translateY(-20px) scale(1.15,0.85)}60%{transform:translateY(4px) scale(0.9,1.1)}80%{transform:translateY(0) scale(1,1)}}
-        .loading-bar{width:160px;height:4px;background-color:#e0e6ed;border-radius:2px;overflow:hidden}
-        .loading-bar-fill{height:100%;background-color:#409eff;border-radius:2px;animation:loading-progress 1.5s infinite ease-in-out;width:0}
+        .loading-bar{width:160px;height:4px;background:#0a1a2e;border-radius:2px;overflow:hidden}
+        .loading-bar-fill{height:100%;background:#00b4ff;border-radius:2px;animation:loading-progress 1.5s infinite ease-in-out;width:0}
         @keyframes loading-progress{0%{width:0%;margin-left:-30%}50%{width:50%;margin-left:25%}100%{width:100%;margin-left:100%}}
-        .loading-text{font-size:14px;color:#909399;margin-top:8px}
-        .sidebar{width:220px;background:#111827;border-right:1px solid #1f2937;padding:20px 0;min-height:100vh}
-        .sidebar .logo{text-align:center;padding:20px;font-size:20px;font-weight:bold;background:linear-gradient(135deg,#f5af19,#f12711);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-        .nav-item{padding:14px 24px;cursor:pointer;color:#9ca3af;border-left:3px solid transparent;transition:.3s;display:flex;align-items:center;gap:10px}
-        .nav-item:hover,.nav-item.active{background:rgba(255,215,0,.05);color:#FFD700;border-left-color:#FFD700}
-        .main{flex:1;padding:30px;overflow-y:auto;max-height:100vh}
-        .page-title{font-size:24px;font-weight:bold;margin-bottom:24px;color:#fff}
-        .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:30px}
-        .stat-card{background:linear-gradient(135deg,#1a1f2e,#1f2937);border-radius:16px;padding:24px;border:1px solid #2a3347}
-        .stat-card .label{font-size:13px;color:#9ca3af;margin-bottom:8px}
-        .stat-card .value{font-size:36px;font-weight:bold;color:#FFD700}
-        .chart-row{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
-        .chart-row-large{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
-        .chart-card{background:#111827;border-radius:16px;padding:24px;border:1px solid #1f2937}
-        .chart-card h3{font-size:16px;color:#e5e7eb;margin-bottom:16px}
-        .chart-container{width:100%;height:320px}
-        .stats-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
-        .stats-summary .mini-stat{background:#0f172a;border-radius:10px;padding:12px;text-align:center;border:1px solid #1f2937}
-        .stats-summary .mini-stat .label{font-size:12px;color:#94a3b8;margin-bottom:4px}
-        .stats-summary .mini-stat .value{font-size:20px;color:#60a5fa;font-weight:bold}
-        .stats-summary .mini-stat .unit{font-size:12px;color:#64748b;margin-left:4px}
-        .hot-item{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #1f2937}
-        .hot-item .rank{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:bold;background:#1f2937;color:#9ca3af}
-        .hot-item .rank.top1{background:#FFD700;color:#1a1a2e}
-        .hot-item .rank.top2{background:#c0c0c0;color:#1a1a2e}
-        .hot-item .rank.top3{background:#cd7f32;color:#1a1a2e}
-        .hot-item .q-text{flex:1;margin-left:12px;font-size:14px}
-        .hot-item .q-count{color:#FFD700;font-weight:bold}
+        .loading-text{font-size:14px;color:#6ea5d6;margin-top:8px;letter-spacing:2px}
+
+        /* ===== 顶部驾驶舱 Header ===== */
+        .cockpit-header{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;padding:14px 30px;border-bottom:1px solid rgba(0,180,255,.25);
+            background:linear-gradient(90deg,rgba(0,40,90,.55),rgba(0,10,30,.25),rgba(0,40,90,.55));backdrop-filter:blur(6px)}
+        .cockpit-header .title-wrap{display:flex;align-items:center;gap:14px}
+        .cockpit-header .logo-dot{width:12px;height:12px;background:#00eaff;border-radius:50%;box-shadow:0 0 16px #00eaff,0 0 6px #00eaff inset;animation:pulseDot 2s infinite}
+        @keyframes pulseDot{0%,100%{box-shadow:0 0 16px #00eaff}50%{box-shadow:0 0 28px #00eaff}}
+        .cockpit-header h1{font-size:22px;color:#eaf6ff;letter-spacing:6px;font-weight:600;
+            background:linear-gradient(90deg,#00eaff,#5fb0ff,#00eaff);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .cockpit-header .sub{font-size:12px;color:#6ea5d6;letter-spacing:2px;margin-left:10px;border-left:1px solid rgba(0,180,255,.5);padding-left:12px}
+        .cockpit-header .header-right{display:flex;align-items:center;gap:22px;font-size:12px;color:#7fa9d4}
+        .cockpit-header .header-right .time{font-family:"Consolas",monospace;color:#7cf5ff;font-size:14px;letter-spacing:1px}
+        .cockpit-header .nav-pills{display:flex;gap:8px}
+        .cockpit-header .nav-pills .pill{padding:6px 14px;border:1px solid rgba(0,180,255,.35);color:#9cd3ff;font-size:12px;border-radius:4px;cursor:pointer;letter-spacing:1px;transition:.2s;background:rgba(0,60,120,.25)}
+        .cockpit-header .nav-pills .pill:hover{background:rgba(0,180,255,.15);border-color:#00eaff;color:#00eaff}
+        .cockpit-header .nav-pills .pill.active{background:rgba(0,180,255,.2);border-color:#00eaff;color:#00eaff;box-shadow:0 0 14px rgba(0,234,255,.35) inset}
+
+        /* ===== 三栏驾驶舱主体 ===== */
+        .cockpit{position:relative;z-index:1;display:grid;grid-template-columns:23% 54% 23%;gap:16px;padding:16px;height:calc(100vh - 60px);min-height:620px}
+        .cockpit-col{display:flex;flex-direction:column;gap:14px;min-height:0}
+
+        /* 面板基类 */
+        .cp-panel{background:linear-gradient(180deg,rgba(4,20,42,.75),rgba(2,10,24,.85));
+            border:1px solid rgba(0,160,240,.22);border-radius:6px;padding:14px;position:relative;overflow:hidden;
+            box-shadow:inset 0 0 20px rgba(0,80,160,.08),0 0 0 1px rgba(0,180,255,.04)}
+        .cp-panel::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,234,255,.6),transparent)}
+        .cp-panel .cp-title{font-size:13px;color:#00eaff;letter-spacing:2px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+        .cp-panel .cp-title::before{content:'';width:8px;height:8px;background:#00eaff;transform:rotate(45deg);box-shadow:0 0 8px #00eaff}
+        .cp-panel .cp-title::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(0,234,255,.5),transparent)}
+
+        /* 左栏：关键指标 + 情感 */
+        .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .kpi-card{background:linear-gradient(135deg,rgba(0,60,130,.4),rgba(0,20,50,.7));border:1px solid rgba(0,180,255,.3);border-radius:6px;padding:10px 12px;position:relative}
+        .kpi-card .kpi-label{font-size:11px;color:#6ea5d6;letter-spacing:1px}
+        .kpi-card .kpi-value{font-size:26px;color:#eaf6ff;font-family:"Consolas",monospace;font-weight:bold;margin-top:4px;line-height:1.1}
+        .kpi-card .kpi-unit{font-size:11px;color:#7fa9d4;margin-left:2px}
+        .kpi-card .kpi-trend{font-size:10px;margin-top:4px}
+        .kpi-card.good .kpi-value{color:#6effa0}
+        .kpi-card.warn .kpi-value{color:#ffb86b}
+        .kpi-card.danger .kpi-value{color:#ff8585}
+        .kpi-card.glow::after{content:'';position:absolute;inset:0;border-radius:6px;pointer-events:none;
+            box-shadow:0 0 20px rgba(0,234,255,.2) inset}
+
+        /* 中栏：图表 */
+        .center-top{display:grid;grid-template-columns:1fr 1fr;gap:14px;flex:1;min-height:0}
+        .center-bottom{display:grid;grid-template-columns:1fr 1fr;gap:14px;flex:1;min-height:0}
+        .cp-chart{flex:1;min-height:0;display:flex;flex-direction:column}
+        .cp-chart .chart-container{flex:1;min-height:0}
+
+        /* 右栏：实时 Feed */
+        .feed-list{flex:1;overflow-y:auto;min-height:0}
+        .feed-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px dashed rgba(0,160,240,.18);font-size:12px}
+        .feed-item .dot{width:6px;height:6px;background:#00eaff;border-radius:50%;margin-top:5px;flex-shrink:0;box-shadow:0 0 6px #00eaff}
+        .feed-item .dot.good{background:#6effa0;box-shadow:0 0 6px #6effa0}
+        .feed-item .dot.warn{background:#ffb86b;box-shadow:0 0 6px #ffb86b}
+        .feed-item .dot.bad{background:#ff8585;box-shadow:0 0 6px #ff8585}
+        .feed-item .time{color:#4f7aa4;font-family:"Consolas",monospace;font-size:11px;flex-shrink:0}
+        .feed-item .content{color:#b8c4d6;flex:1;line-height:1.45}
+        .feed-item .content .q{color:#00eaff}
+        .feed-item .content .a{color:#8aa3c2}
+
+        .hot-item{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed rgba(0,160,240,.18);font-size:12px}
+        .hot-item .rank{width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;background:rgba(0,60,130,.4);color:#9cd3ff;font-family:"Consolas",monospace}
+        .hot-item .rank.r1{background:linear-gradient(135deg,#ffae00,#ff5e00);color:#0b1020;box-shadow:0 0 10px rgba(255,174,0,.6)}
+        .hot-item .rank.r2{background:linear-gradient(135deg,#c0c0c0,#8892b0);color:#0b1020}
+        .hot-item .rank.r3{background:linear-gradient(135deg,#cd7f32,#8b5a2b);color:#0b1020}
+        .hot-item .q-text{flex:1;margin-left:10px;color:#bcd4ef;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .hot-item .q-count{color:#00eaff;font-family:"Consolas",monospace}
+
+        .mini-stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+        .mini-stat{background:rgba(0,40,90,.35);border:1px solid rgba(0,160,240,.25);border-radius:4px;padding:6px 8px;text-align:center}
+        .mini-stat .label{font-size:10px;color:#6ea5d6;letter-spacing:1px}
+        .mini-stat .value{font-size:18px;color:#00eaff;font-family:"Consolas",monospace;font-weight:bold;margin-top:2px}
+
+        .bar-chart{display:flex;align-items:flex-end;gap:3px;height:100%;min-height:80px;margin-top:6px}
+        .bar{flex:1;background:linear-gradient(180deg,#00b4ff 0%,rgba(0,180,255,.2) 100%);border-radius:2px 2px 0 0;min-height:3px;position:relative;box-shadow:0 0 6px rgba(0,180,255,.5)}
+        .bar span{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:10px;color:#00eaff;font-family:"Consolas",monospace}
+        .bar .label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:9px;color:#4f7aa4}
+
+        /* 非驾驶舱页面 */
         .page{display:none}.page.active{display:block}
-        button.btn{background:#1f2937;color:#fff;border:1px solid #2a3347;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px;transition:.2s}
-        button.btn:hover{background:#374151;border-color:#FFD700}
-        .bar-chart{display:flex;align-items:flex-end;gap:6px;height:120px;margin-top:10px}
-        .bar{flex:1;background:linear-gradient(180deg,#667eea,#764ba2);border-radius:4px 4px 0 0;min-height:4px;position:relative;text-align:center}
-        .bar span{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:11px;color:#FFD700}
-        .bar .label{position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);font-size:10px;color:#9ca3af}
-        table{width:100%;border-collapse:collapse;font-size:13px}
-        th,td{text-align:left;padding:8px 12px;border-bottom:1px solid #1f2937}
-        th{color:#FFD700;font-weight:normal}
-        input[type=file]{color:#c0c8d8;margin-top:10px}
+        .alt-page{position:relative;z-index:1;padding:24px 30px;max-width:1400px;margin:0 auto}
+        .alt-page .page-title{font-size:20px;color:#eaf6ff;letter-spacing:3px;margin-bottom:18px;border-left:3px solid #00eaff;padding-left:10px}
+        .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+        button.btn{background:rgba(0,60,130,.4);color:#9cd3ff;border:1px solid rgba(0,160,240,.4);padding:6px 14px;border-radius:4px;cursor:pointer;font-size:12px;letter-spacing:1px;transition:.2s}
+        button.btn:hover{background:rgba(0,180,255,.2);border-color:#00eaff;color:#00eaff;box-shadow:0 0 10px rgba(0,234,255,.25)}
+        table{width:100%;border-collapse:collapse;font-size:12px}
+        th,td{text-align:left;padding:8px 12px;border-bottom:1px solid rgba(0,160,240,.18)}
+        th{color:#00eaff;font-weight:normal}
+        input[type=file]{color:#9cd3ff;margin-top:10px}
+
+        /* 响应 */
+        @media(max-width:1400px){
+            .cockpit{grid-template-columns:25% 50% 25%}
+        }
+        @media(max-width:1100px){
+            .cockpit{grid-template-columns:1fr;grid-template-rows:auto auto auto;height:auto}
+            .cockpit-col{gap:10px}
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 </head>
 <body>
-<div id="app-loading"><div class="loading-content"><div class="koi-cube"></div><div class="loading-bar"><div class="loading-bar-fill"></div></div><div class="loading-text">管理台加载中...</div></div></div>
-<div class="sidebar">
-    <div class="logo">灵山管理台</div>
-    <div class="nav-item active" onclick="showPage('dashboard')">数据大屏</div>
-    <div class="nav-item" onclick="showPage('history')">交互历史</div>
-    <div class="nav-item" onclick="showPage('feedbacks')">用户反馈</div>
-    <div class="nav-item" onclick="showPage('knowledge')">知识库管理</div>
-    <div class="nav-item" onclick="showPage('models')">🎭 模型管理</div>
-            <div class="nav-item" onclick="window.open('/')">游客端</div>
+<div id="app-loading"><div class="loading-content"><div class="koi-cube"></div><div class="loading-bar"><div class="loading-bar-fill"></div></div><div class="loading-text">运营驾驶舱启动中...</div></div></div>
+
+<!-- ============ 驾驶舱 Header ============ -->
+<div class="cockpit-header">
+    <div class="title-wrap">
+        <span class="logo-dot"></span>
+        <h1>灵山胜境 · AI导游运营驾驶舱</h1>
+        <span class="sub">LINGSHAN AI GUIDE · OPERATION COCKPIT</span>
+    </div>
+    <div class="header-right">
+        <span class="time" id="headerTime">--:--:--</span>
+        <div class="nav-pills">
+            <span class="pill active" onclick="showPage('dashboard')">驾驶舱</span>
+            <span class="pill" onclick="showPage('history')">交互历史</span>
+            <span class="pill" onclick="showPage('feedbacks')">用户反馈</span>
+            <span class="pill" onclick="showPage('knowledge')">知识库</span>
+            <span class="pill" onclick="showPage('models')">模型管理</span>
+            <span class="pill" onclick="window.open('/')">游客端</span>
+        </div>
+    </div>
 </div>
-<div class="main">
-    <!-- 数据大屏页 -->
-    <div class="page active" id="page-dashboard">
-        <div class="page-title">运营数据大屏</div>
-        <div class="stats-grid">
-            <div class="stat-card"><div class="label">今日服务人次</div><div class="value" id="todayVisitors">-</div></div>
-            <div class="stat-card"><div class="label">本周累计问答</div><div class="value" id="weekVisitors">-</div></div>
-            <div class="stat-card"><div class="label">游客满意度</div><div class="value" id="satisfaction">-</div></div>
-            <div class="stat-card"><div class="label">平均响应时间</div><div class="value" id="avgResponse">-</div></div>
-        </div>
-        <div class="chart-row-large">
-            <div class="chart-card">
-                <h3>用户概述（月度访问量）</h3>
-                <div id="visitBarChart" class="chart-container"></div>
-                <div class="stats-summary">
-                    <div class="mini-stat"><div class="label">总用户量</div><div class="value" id="sumTotalUsers">-</div></div>
-                    <div class="mini-stat"><div class="label">总访问量</div><div class="value" id="sumTotalVisits">-</div></div>
-                    <div class="mini-stat"><div class="label">日访问量</div><div class="value" id="sumDailyVisits">-</div></div>
-                    <div class="mini-stat"><div class="label">周同比</div><div class="value" id="sumWeekDiff">-</div></div>
-                </div>
-            </div>
-            <div class="chart-card">
-                <h3>访问量趋势（折线图）</h3>
-                <div id="visitLineChart" class="chart-container"></div>
+
+<!-- ============ 驾驶舱主体 ============ -->
+<div class="cockpit" id="cockpitMain">
+    <!-- 左栏：核心指标 -->
+    <div class="cockpit-col">
+        <div class="cp-panel">
+            <div class="cp-title">核心指标 · KPI</div>
+            <div class="kpi-grid">
+                <div class="kpi-card glow"><div class="kpi-label">今日服务</div><div class="kpi-value" id="todayVisitors">-<span class="kpi-unit">人</span></div></div>
+                <div class="kpi-card glow"><div class="kpi-label">本周问答</div><div class="kpi-value" id="weekVisitors">-<span class="kpi-unit">次</span></div></div>
+                <div class="kpi-card glow good"><div class="kpi-label">满意度</div><div class="kpi-value" id="satisfaction">-%<span class="kpi-unit"></span></div></div>
+                <div class="kpi-card glow warn"><div class="kpi-label">平均响应</div><div class="kpi-value" id="avgResponse">-<span class="kpi-unit">s</span></div></div>
+                <div class="kpi-card"><div class="kpi-label">累计用户</div><div class="kpi-value" id="sumTotalUsers">-</div></div>
+                <div class="kpi-card"><div class="kpi-label">累计访问</div><div class="kpi-value" id="sumTotalVisits">-</div></div>
+                <div class="kpi-card"><div class="kpi-label">日访问量</div><div class="kpi-value" id="sumDailyVisits">-</div></div>
+                <div class="kpi-card"><div class="kpi-label">周同比</div><div class="kpi-value" id="sumWeekDiff">-</div></div>
             </div>
         </div>
-        <div class="chart-row-large">
-            <div class="chart-card">
-                <h3>游客情感分布</h3>
-                <div id="sentimentPieChart" class="chart-container"></div>
-            </div>
-            <div class="chart-card">
-                <h3>情感趋势（近7天）</h3>
-                <div id="sentimentLineChart" class="chart-container"></div>
-            </div>
-        </div>
-        <div class="chart-row">
-            <div class="chart-card">
-                <h3>热门问题 Top 5</h3>
-                <div id="topQuestions"></div>
-            </div>
-            <div class="chart-card">
-                <h3>近14天访问量</h3>
-                <div id="dailyChart" class="bar-chart"></div>
-            </div>
-        </div>
-        <div style="margin-top:15px;">
-            <button class="btn" onclick="exportData('json')">导出JSON</button>
-            <button class="btn" onclick="exportData('csv')">导出CSV</button>
+
+        <div class="cp-panel" style="flex:1;min-height:0">
+            <div class="cp-title">游客情感分布</div>
+            <div id="sentimentPieChart" style="width:100%;height:calc(100% - 24px);min-height:180px"></div>
         </div>
     </div>
 
-    <!-- 交互历史页 -->
-    <div class="page" id="page-history">
-        <div class="page-title">最近交互记录</div>
-        <div id="historyList" class="chart-card" style="max-height:500px;overflow-y:auto;"></div>
-    </div>
-
-    <!-- 用户反馈页 -->
-    <div class="page" id="page-feedbacks">
-        <div class="page-title">用户反馈</div>
-        <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px;">
-            <div class="stat-card"><div class="label">满意</div><div class="value" style="color:#4caf50" id="goodCount">0</div></div>
-            <div class="stat-card"><div class="label">一般</div><div class="value" style="color:#ff9800" id="neutralCount">0</div></div>
-            <div class="stat-card"><div class="label">不满意</div><div class="value" style="color:#f44336" id="badCount">0</div></div>
+    <!-- 中栏：核心图表 -->
+    <div class="cockpit-col">
+        <div class="cp-panel" style="flex:1;min-height:0;display:flex;flex-direction:column">
+            <div class="cp-title">月度访问量 · 用户概述</div>
+            <div id="visitBarChart" style="width:100%;flex:1;min-height:200px"></div>
+            <div class="mini-stat-row">
+                <div class="mini-stat"><div class="label">总用户</div><div class="value" id="mTotalUsers">-</div></div>
+                <div class="mini-stat"><div class="label">总访问</div><div class="value" id="mTotalVisits">-</div></div>
+                <div class="mini-stat"><div class="label">日访问</div><div class="value" id="mDailyVisits">-</div></div>
+                <div class="mini-stat"><div class="label">周同比</div><div class="value" id="mWeekDiff">-</div></div>
+            </div>
         </div>
-        <div id="feedbackList" class="chart-card" style="max-height:400px;overflow-y:auto;"></div>
-    </div>
-
-    <!-- 知识库管理页 -->
-    <div class="page" id="page-knowledge">
-        <div class="page-title">知识库文档管理</div>
-        <div style="margin-bottom:20px;">
-            <input type="file" id="docFile" accept=".txt,.docx,.pdf">
-            <button class="btn" onclick="uploadDocument()">上传新文档</button><button class="btn" onclick="rebuildIndex()" style="margin-left:10px;">重建索引</button>
-            <span id="uploadStatus" style="color:#FFD700;margin-left:10px;"></span>
+        <div class="cp-panel" style="flex:1;min-height:0;display:flex;flex-direction:column">
+            <div class="cp-title">趋势对比（月度）</div>
+            <div id="visitLineChart" style="width:100%;flex:1;min-height:180px"></div>
         </div>
-        <div class="chart-card">
-            <h3>现有文档</h3>
-            <div id="docList"></div>
+        <div class="cp-panel" style="flex:1;min-height:0;display:flex;flex-direction:column">
+            <div class="cp-title">近14天访问量</div>
+            <div class="bar-chart" id="dailyChart" style="width:100%;flex:1"></div>
         </div>
     </div>
 
-        <!-- 模型管理页 -->
-        <div class="page" id="page-models">
-            <div class="page-title">数字人模型管理</div>
-            <div style="margin-bottom:20px; display:flex; align-items:center; gap:10px;">
-                <input type="file" id="modelFile" accept=".zip" multiple style="display:none">
-                <button class="btn" onclick="document.getElementById('modelFile').click()">上传 Live2D 模型 (ZIP)</button>
-                <span id="modelUploadStatus" style="color:#FFD700; margin-left:10px;"></span>
-            </div>
-            <div style="padding:20px; background:#111827; border:2px dashed #2a3347; border-radius:12px; margin-bottom:20px; cursor:pointer;" onclick="document.getElementById('modelFile').click()" id="uploadZone">
-                <div style="text-align:center;">
-                    <div style="font-size:32px;">📁</div>
-                    <div style="color:#9ca3af; margin-top:8px;">拖拽 Live2D 模型文件夹（ZIP格式）到此处，或点击选择文件</div>
-                    <div style="color:#6b7280; font-size:12px; margin-top:4px;">支持 .zip 格式（包含 .model.json 文件）</div>
-                </div>
-            </div>
-            <div class="chart-card">
-                <h3>已上传模型</h3>
-                <div id="modelList" style="max-height:400px; overflow-y:auto;"></div>
-            </div>
+    <!-- 右栏：实时动态 -->
+    <div class="cockpit-col">
+        <div class="cp-panel" style="flex:1;min-height:0;display:flex;flex-direction:column">
+            <div class="cp-title">实时交互动态</div>
+            <div class="feed-list" id="realtimeFeed"></div>
         </div>
-
+        <div class="cp-panel" style="flex:1;min-height:0;display:flex;flex-direction:column">
+            <div class="cp-title">热门问题 Top5</div>
+            <div id="topQuestions" style="flex:1;overflow-y:auto"></div>
+        </div>
+        <div class="cp-panel" style="flex:1;min-height:0;display:flex;flex-direction:column">
+            <div class="cp-title">情感趋势（近7天）</div>
+            <div id="sentimentLineChart" style="width:100%;flex:1;min-height:150px"></div>
+        </div>
+    </div>
 </div>
+
+<!-- ============ 非驾驶舱页面 ============ -->
+<div class="alt-page page" id="page-dashboard-other" style="display:none">
+    <div class="page-title">运营驾驶舱</div>
+</div>
+
+<div class="alt-page page" id="page-history">
+    <div class="page-title">交互历史</div>
+    <div class="cp-panel" style="padding:0"><div id="historyList" style="max-height:560px;overflow-y:auto;padding:14px"></div></div>
+</div>
+
+<div class="alt-page page" id="page-feedbacks">
+    <div class="page-title">用户反馈</div>
+    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="cp-panel"><div style="font-size:12px;color:#6ea5d6">满意</div><div style="font-size:28px;color:#6effa0;font-family:Consolas,monospace;margin-top:6px" id="goodCount">0</div></div>
+        <div class="cp-panel"><div style="font-size:12px;color:#6ea5d6">一般</div><div style="font-size:28px;color:#ffb86b;font-family:Consolas,monospace;margin-top:6px" id="neutralCount">0</div></div>
+        <div class="cp-panel"><div style="font-size:12px;color:#6ea5d6">不满意</div><div style="font-size:28px;color:#ff8585;font-family:Consolas,monospace;margin-top:6px" id="badCount">0</div></div>
+    </div>
+    <div class="cp-panel" style="padding:0"><div id="feedbackList" style="max-height:400px;overflow-y:auto;padding:14px"></div></div>
+</div>
+
+<div class="alt-page page" id="page-knowledge">
+    <div class="page-title">知识库文档管理</div>
+    <div style="margin-bottom:16px">
+        <input type="file" id="docFile" accept=".txt,.docx,.pdf">
+        <button class="btn" onclick="uploadDocument()">上传新文档</button>
+        <button class="btn" onclick="rebuildIndex()" style="margin-left:8px">重建索引</button>
+        <span id="uploadStatus" style="color:#6effa0;margin-left:10px;font-size:12px"></span>
+    </div>
+    <div class="cp-panel"><div class="cp-title">现有文档</div><div id="docList"></div></div>
+</div>
+
+<div class="alt-page page" id="page-models">
+    <div class="page-title">数字人模型管理</div>
+    <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px">
+        <input type="file" id="modelFile" accept=".zip" multiple style="display:none" onchange="uploadLive2D(this)">
+        <button class="btn" onclick="document.getElementById('modelFile').click()">上传 Live2D 模型 (ZIP)</button>
+        <span id="modelUploadStatus" style="color:#6effa0;font-size:12px"></span>
+    </div>
+    <div class="cp-panel" style="text-align:center;padding:28px;cursor:pointer;border-style:dashed" onclick="document.getElementById('modelFile').click()" id="uploadZone">
+        <div style="font-size:32px">📁</div>
+        <div style="color:#6ea5d6;margin-top:6px">拖拽 Live2D 模型（ZIP）到此处 / 点击选择</div>
+    </div>
+
+    <div class="cp-panel" style="margin-top:18px">
+        <div class="cp-title">内置模型（共 9 个，系统预置）</div>
+        <div id="builtInList"></div>
+    </div>
+    <div class="cp-panel" style="margin-top:18px">
+        <div class="cp-title">我上传的模型</div>
+        <div id="customList"></div>
+    </div>
+</div>
+
 <script>
-// 页面切换
+// ===== Header 时钟 =====
+function tickClock(){
+    var d=new Date();
+    var pad=x=>x<10?'0'+x:x;
+    document.getElementById('headerTime').textContent=
+        pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+}
+setInterval(tickClock,1000);tickClock();
+
+// ===== 页面切换 =====
 function showPage(name){
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    document.getElementById('page-'+name).classList.add('active');
-    event.target.closest('.nav-item').classList.add('active');
-    if(name === 'dashboard') loadDashboard();
-    if(name === 'history') loadHistory();
-    if(name === 'feedbacks') loadFeedbacks();
-    if(name === 'knowledge') loadDocuments();
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.querySelectorAll('.nav-pills .pill').forEach(n=>n.classList.remove('active'));
+    if(event && event.target) event.target.classList.add('active');
+    var cockpit=document.getElementById('cockpitMain');
+    var pages=document.querySelectorAll('.alt-page');
+    if(name==='dashboard'){
+        cockpit.style.display='grid';
+        pages.forEach(p=>p.style.display='none');
+        loadDashboard();
+    }else{
+        cockpit.style.display='none';
+        var pg=document.getElementById('page-'+name);
+        if(pg){pg.style.display='block';pg.classList.add('active')}
+        if(name==='history') loadHistory();
+        if(name==='feedbacks') loadFeedbacks();
+        if(name==='knowledge') loadDocuments();
+        if(name==='models') loadModels();
+    }
 }
 
-// 数据大屏
-let barChart = null, lineChart = null, sentimentPieChart = null, sentimentLineChart = null;
+// ===== 数据大屏 =====
+let barChart=null,lineChart=null,sentimentPieChart=null,sentimentLineChart=null;
 
 async function loadDashboard(){
-    const res = await fetch('/api/admin/dashboard');
-    const data = await res.json();
-    document.getElementById('todayVisitors').textContent = data.today_visitors || 0;
-    document.getElementById('weekVisitors').textContent = data.week_visitors || 0;
-    document.getElementById('satisfaction').textContent = data.satisfaction_rate != null ? data.satisfaction_rate+'%' : '暂无';
-    document.getElementById('avgResponse').textContent = (data.avg_response_time||0)+'s';
+    var res=await fetch('/api/admin/dashboard');
+    var data=await res.json();
 
-    document.getElementById('sumTotalUsers').textContent = data.total_users || 0;
-    document.getElementById('sumTotalVisits').textContent = data.total_interactions || 0;
-    document.getElementById('sumDailyVisits').textContent = (data.daily_visits || []).slice(-1)[0] || 0;
-    const wc = data.week_change_pct || 0;
-    document.getElementById('sumWeekDiff').innerHTML = wc >= 0
-        ? `<span style="color:#4caf50">+${wc}%</span>`
-        : `<span style="color:#f44336">${wc}%</span>`;
+    document.getElementById('todayVisitors').textContent=data.today_visitors||0;
+    document.getElementById('weekVisitors').textContent=data.week_visitors||0;
+    document.getElementById('satisfaction').textContent=data.satisfaction_rate!=null?data.satisfaction_rate+'%':'-';
+    document.getElementById('avgResponse').textContent=(data.avg_response_time||0)+'s';
 
+    document.getElementById('sumTotalUsers').textContent=data.total_users||0;
+    document.getElementById('sumTotalVisits').textContent=data.total_interactions||0;
+    document.getElementById('sumDailyVisits').textContent=(data.daily_visits||[]).slice(-1)[0]||0;
+    var wc=data.week_change_pct||0;
+    document.getElementById('sumWeekDiff').innerHTML=wc>=0?`<span style="color:#6effa0">+${wc}%</span>`:`<span style="color:#ff8585">${wc}%</span>`;
+
+    document.getElementById('mTotalUsers').textContent=data.total_users||0;
+    document.getElementById('mTotalVisits').textContent=data.total_interactions||0;
+    document.getElementById('mDailyVisits').textContent=(data.daily_visits||[]).slice(-1)[0]||0;
+    document.getElementById('mWeekDiff').innerHTML=wc>=0?`+${wc}%`:`${wc}%`;
+
+    // 柱状图
     if(!barChart && document.getElementById('visitBarChart'))
-        barChart = echarts.init(document.getElementById('visitBarChart'));
-    if(!lineChart && document.getElementById('visitLineChart'))
-        lineChart = echarts.init(document.getElementById('visitLineChart'));
-
+        barChart=echarts.init(document.getElementById('visitBarChart'));
     if(barChart){
         barChart.setOption({
-            tooltip:{trigger:'axis',backgroundColor:'#1f2937',borderColor:'#374151',textStyle:{color:'#e5e7eb'}},
-            grid:{left:40,right:20,top:30,bottom:30},
-            xAxis:{
-                type:'category',
-                data:data.monthly_labels || [],
-                axisLine:{lineStyle:{color:'#374151'}},
-                axisLabel:{color:'#9ca3af'}
-            },
-            yAxis:{
-                type:'value',
-                axisLine:{show:false},
-                axisLabel:{color:'#9ca3af'},
-                splitLine:{lineStyle:{color:'#1f2937'}}
-            },
-            series:[{
-                name:'访问量',
-                type:'bar',
-                data:data.monthly_visits || [],
-                barWidth:'40%',
-                itemStyle:{
-                    borderRadius:[4,4,0,0],
-                    color:new echarts.graphic.LinearGradient(0,0,0,1,[
-                        {offset:0,color:'#667eea'},
-                        {offset:1,color:'#764ba2'}
-                    ])
-                }
+            tooltip:{trigger:'axis',backgroundColor:'#04142a',borderColor:'#0a6fb0',textStyle:{color:'#eaf6ff'}},
+            grid:{left:36,right:12,top:20,bottom:28},
+            xAxis:{type:'category',data:data.monthly_labels||[],axisLine:{lineStyle:{color:'#0a6fb0'}},axisLabel:{color:'#6ea5d6'}},
+            yAxis:{type:'value',axisLine:{show:false},axisLabel:{color:'#6ea5d6'},splitLine:{lineStyle:{color:'rgba(10,111,176,.18)'}}},
+            series:[{name:'访问量',type:'bar',data:data.monthly_visits||[],barWidth:'42%',
+                itemStyle:{borderRadius:[3,3,0,0],color:new echarts.graphic.LinearGradient(0,0,0,1,[
+                    {offset:0,color:'#00eaff'},{offset:1,color:'#0a6fb0'}])},
+                emphasis:{itemStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[
+                    {offset:0,color:'#5ff0ff'},{offset:1,color:'#0b8bd6'}])}}
             }]
         });
     }
 
+    // 折线图（访问+问答）
+    if(!lineChart && document.getElementById('visitLineChart'))
+        lineChart=echarts.init(document.getElementById('visitLineChart'));
     if(lineChart){
         lineChart.setOption({
-            tooltip:{trigger:'axis',backgroundColor:'#1f2937',borderColor:'#374151',textStyle:{color:'#e5e7eb'}},
-            legend:{data:['访问量','问答量'],textStyle:{color:'#9ca3af'},top:0},
-            grid:{left:40,right:20,top:50,bottom:30},
-            xAxis:{
-                type:'category',
-                data:data.monthly_labels || [],
-                axisLine:{lineStyle:{color:'#374151'}},
-                axisLabel:{color:'#9ca3af'}
-            },
-            yAxis:{
-                type:'value',
-                axisLine:{show:false},
-                axisLabel:{color:'#9ca3af'},
-                splitLine:{lineStyle:{color:'#1f2937'}}
-            },
+            tooltip:{trigger:'axis',backgroundColor:'#04142a',borderColor:'#0a6fb0',textStyle:{color:'#eaf6ff'}},
+            legend:{data:['访问量','问答量'],textStyle:{color:'#6ea5d6'},top:0},
+            grid:{left:36,right:12,top:44,bottom:24},
+            xAxis:{type:'category',data:data.monthly_labels||[],axisLine:{lineStyle:{color:'#0a6fb0'}},axisLabel:{color:'#6ea5d6'}},
+            yAxis:{type:'value',axisLine:{show:false},axisLabel:{color:'#6ea5d6'},splitLine:{lineStyle:{color:'rgba(10,111,176,.18)'}}},
             series:[
-                {
-                    name:'访问量',
-                    type:'line',
-                    data:data.monthly_visits || [],
-                    smooth:true,
-                    symbol:'circle',
-                    symbolSize:6,
-                    lineStyle:{color:'#667eea',width:2},
-                    itemStyle:{color:'#667eea'},
-                    areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[
-                        {offset:0,color:'rgba(102,126,234,0.4)'},
-                        {offset:1,color:'rgba(102,126,234,0)'}
-                    ])}
-                },
-                {
-                    name:'问答量',
-                    type:'line',
-                    data:data.monthly_logs || [],
-                    smooth:true,
-                    symbol:'circle',
-                    symbolSize:6,
-                    lineStyle:{color:'#f5af19',width:2},
-                    itemStyle:{color:'#f5af19'},
-                    areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[
-                        {offset:0,color:'rgba(245,175,25,0.3)'},
-                        {offset:1,color:'rgba(245,175,25,0)'}
-                    ])}
-                }
+                {name:'访问量',type:'line',data:data.monthly_visits||[],smooth:true,symbol:'circle',symbolSize:5,
+                    lineStyle:{color:'#00eaff',width:2},itemStyle:{color:'#00eaff'},
+                    areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(0,234,255,.35)'},{offset:1,color:'rgba(0,234,255,0)'}])}},
+                {name:'问答量',type:'line',data:data.monthly_logs||[],smooth:true,symbol:'circle',symbolSize:5,
+                    lineStyle:{color:'#ffb86b',width:2},itemStyle:{color:'#ffb86b'},
+                    areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(255,184,107,.3)'},{offset:1,color:'rgba(255,184,107,0)'}])}}
             ]
         });
     }
 
-    // === 游客情感分布（饼图） ===
+    // 情感饼图
     if(!sentimentPieChart && document.getElementById('sentimentPieChart'))
-        sentimentPieChart = echarts.init(document.getElementById('sentimentPieChart'));
-    const sent = data.sentiment || {total:{good:0,neutral:0,bad:0},daily:[]};
-    const totalCount = (sent.total.good||0)+(sent.total.neutral||0)+(sent.total.bad||0);
+        sentimentPieChart=echarts.init(document.getElementById('sentimentPieChart'));
+    var sent=data.sentiment||{total:{good:0,neutral:0,bad:0},daily:[]};
     if(sentimentPieChart){
         sentimentPieChart.setOption({
-            tooltip:{trigger:'item',backgroundColor:'#1f2937',borderColor:'#374151',textStyle:{color:'#e5e7eb'},formatter:'{b}: {c} ({d}%)'},
-            legend:{orient:'horizontal',bottom:0,textStyle:{color:'#9ca3af'}},
-            series:[{
-                type:'pie',
-                radius:['40%','70%'],
-                center:['50%','45%'],
-                avoidLabelOverlap:true,
-                itemStyle:{borderRadius:8,borderColor:'#1a2035',borderWidth:2},
-                label:{show:true,color:'#9ca3af',formatter:'{b}\n{d}%'},
+            tooltip:{trigger:'item',backgroundColor:'#04142a',borderColor:'#0a6fb0',textStyle:{color:'#eaf6ff'},formatter:'{b}: {c} ({d}%)'},
+            legend:{orient:'horizontal',bottom:0,textStyle:{color:'#6ea5d6'}},
+            series:[{type:'pie',radius:['40%','70%'],center:['50%','45%'],
+                itemStyle:{borderRadius:6,borderColor:'#02060f',borderWidth:2},
+                label:{show:true,color:'#bcd4ef',formatter:'{b}\n{d}%'},
                 data:[
-                    {name:'正面',value:sent.total.good||0,itemStyle:{color:'#4caf50'}},
-                    {name:'中性',value:sent.total.neutral||0,itemStyle:{color:'#ff9800'}},
-                    {name:'负面',value:sent.total.bad||0,itemStyle:{color:'#f44336'}}
+                    {name:'正面',value:sent.total.good||0,itemStyle:{color:'#6effa0'}},
+                    {name:'中性',value:sent.total.neutral||0,itemStyle:{color:'#ffb86b'}},
+                    {name:'负面',value:sent.total.bad||0,itemStyle:{color:'#ff8585'}}
                 ]
             }]
         });
     }
 
-    // === 情感趋势（折线图 近7天） ===
+    // 情感趋势
     if(!sentimentLineChart && document.getElementById('sentimentLineChart'))
-        sentimentLineChart = echarts.init(document.getElementById('sentimentLineChart'));
-    const dailyArr = sent.daily || [];
-    const sentDates = dailyArr.map(x => x.date);
-    const sentGood = dailyArr.map(x => x.good || 0);
-    const sentNeu = dailyArr.map(x => x.neutral || 0);
-    const sentBad = dailyArr.map(x => x.bad || 0);
+        sentimentLineChart=echarts.init(document.getElementById('sentimentLineChart'));
+    var dailyArr=sent.daily||[];
     if(sentimentLineChart){
         sentimentLineChart.setOption({
-            tooltip:{trigger:'axis',backgroundColor:'#1f2937',borderColor:'#374151',textStyle:{color:'#e5e7eb'}},
-            legend:{data:['正面','中性','负面'],textStyle:{color:'#9ca3af'},top:0},
-            grid:{left:40,right:20,top:50,bottom:30},
-            xAxis:{type:'category',data:sentDates,axisLine:{lineStyle:{color:'#374151'}},axisLabel:{color:'#9ca3af'}},
-            yAxis:{type:'value',axisLine:{show:false},axisLabel:{color:'#9ca3af'},splitLine:{lineStyle:{color:'#1f2937'}}},
+            tooltip:{trigger:'axis',backgroundColor:'#04142a',borderColor:'#0a6fb0',textStyle:{color:'#eaf6ff'}},
+            legend:{data:['正面','中性','负面'],textStyle:{color:'#6ea5d6'},top:0},
+            grid:{left:32,right:8,top:40,bottom:18},
+            xAxis:{type:'category',data:dailyArr.map(x=>x.date),axisLine:{lineStyle:{color:'#0a6fb0'}},axisLabel:{color:'#6ea5d6',fontSize:10}},
+            yAxis:{type:'value',axisLine:{show:false},axisLabel:{color:'#6ea5d6',fontSize:10},splitLine:{lineStyle:{color:'rgba(10,111,176,.18)'}}},
             series:[
-                {name:'正面',type:'line',stack:'total',data:sentGood,smooth:true,lineStyle:{color:'#4caf50'},itemStyle:{color:'#4caf50'},areaStyle:{color:'rgba(76,175,80,0.25)'}},
-                {name:'中性',type:'line',stack:'total',data:sentNeu,smooth:true,lineStyle:{color:'#ff9800'},itemStyle:{color:'#ff9800'},areaStyle:{color:'rgba(255,152,0,0.2)'}},
-                {name:'负面',type:'line',stack:'total',data:sentBad,smooth:true,lineStyle:{color:'#f44336'},itemStyle:{color:'#f44336'},areaStyle:{color:'rgba(244,67,54,0.2)'}}
+                {name:'正面',type:'line',stack:'total',data:dailyArr.map(x=>x.good||0),smooth:true,symbol:'circle',symbolSize:4,
+                    lineStyle:{color:'#6effa0'},itemStyle:{color:'#6effa0'},areaStyle:{color:'rgba(110,255,160,.22)'}},
+                {name:'中性',type:'line',stack:'total',data:dailyArr.map(x=>x.neutral||0),smooth:true,symbol:'circle',symbolSize:4,
+                    lineStyle:{color:'#ffb86b'},itemStyle:{color:'#ffb86b'},areaStyle:{color:'rgba(255,184,107,.18)'}},
+                {name:'负面',type:'line',stack:'total',data:dailyArr.map(x=>x.bad||0),smooth:true,symbol:'circle',symbolSize:4,
+                    lineStyle:{color:'#ff8585'},itemStyle:{color:'#ff8585'},areaStyle:{color:'rgba(255,133,133,.18)'}}
             ]
         });
     }
 
-    const topDiv = document.getElementById('topQuestions');
-    topDiv.innerHTML = '';
-    (data.top_questions || []).forEach((item, idx) => {
-        const rankClass = idx===0?'top1':idx===1?'top2':idx===2?'top3':'';
-        topDiv.innerHTML += `<div class="hot-item"><span class="rank ${rankClass}">${idx+1}</span><span class="q-text">${item.q}</span><span class="q-count">${item.count}次</span></div>`;
-    });
+    // 实时交互动态（取最近日志，最多10条）
+    var feed=document.getElementById('realtimeFeed');
+    try{
+        var hres=await fetch('/api/admin/recent');
+        var hlogs=await hres.json();
+        hlogs=hlogs.value||hlogs;
+        feed.innerHTML=hlogs.slice(-10).reverse().map(log=>{
+            var ts=new Date(log.timestamp*1000);
+            var pad=x=>x<10?'0'+x:x;
+            var t=pad(ts.getHours())+':'+pad(ts.getMinutes())+':'+pad(ts.getSeconds());
+            var q=(log.question||'').slice(0,28);
+            return `<div class="feed-item"><span class="dot"></span><span class="time">${t}</span><span class="content"><span class="q">Q:${q}</span></span></div>`;
+        }).join('');
+    }catch(e){feed.innerHTML='<div style="color:#6ea5d6;font-size:12px">暂无交互记录</div>'}
 
-    const today = new Date();
-    const dayLabels = [];
-    for(let i=13;i>=0;i--){
-        const d = new Date(today); d.setDate(d.getDate()-i);
-        dayLabels.push((d.getMonth()+1) + '/' + d.getDate());
-    }
-    const dailyData = data.daily_visits || [];
-    const maxCount = Math.max(...dailyData, 1);
-    const chartDiv = document.getElementById('dailyChart');
-    chartDiv.innerHTML = dailyData.map((c, i) => {
-        const height = (c / maxCount * 100) + '%';
-        return `<div class="bar" style="height:${height}"><span>${c}</span><div class="label">${dayLabels[i]}</div></div>`;
+    // 热门问题
+    var topDiv=document.getElementById('topQuestions');
+    topDiv.innerHTML='';
+    (data.top_questions||[]).forEach((item,idx)=>{
+        var rk=idx===0?'r1':idx===1?'r2':idx===2?'r3':'';
+        topDiv.innerHTML+=`<div class="hot-item"><span class="rank ${rk}">${idx+1}</span><span class="q-text">${item.q}</span><span class="q-count">${item.count}</span></div>`;
+    });
+    if(!(data.top_questions||[]).length) topDiv.innerHTML='<div style="color:#6ea5d6;font-size:12px;text-align:center;padding:10px 0">暂无数据</div>';
+
+    // 近14天柱状
+    var today=new Date();
+    var dayLabels=[];
+    for(let i=13;i>=0;i--){var d=new Date(today);d.setDate(d.getDate()-i);dayLabels.push((d.getMonth()+1)+'/'+d.getDate())}
+    var dailyData=data.daily_visits||[];
+    var maxCount=Math.max.apply(null,dailyData.concat([1]));
+    var chartDiv=document.getElementById('dailyChart');
+    chartDiv.innerHTML=dailyData.map((c,i)=>{
+        var hgt=(c/maxCount*100)+'%';
+        return `<div class="bar" style="height:${hgt}"><span>${c}</span><div class="label">${dayLabels[i]}</div></div>`;
     }).join('');
 }
-// 导出数据
-async function exportData(format){
-    const a = document.createElement('a');
-    a.href = `/api/admin/export?format=${format}`;
-    a.download = `interaction_log.${format}`;
+
+function exportData(format){
+    var a=document.createElement('a');
+    a.href='/api/admin/export?format='+format;
+    a.download='interaction_log.'+format;
     a.click();
 }
-// 交互历史
+
 async function loadHistory(){
-    const res = await fetch('/api/admin/recent');
-    const data = await res.json();
-    const logs = data.value || data;
-    document.getElementById('historyList').innerHTML = logs.map(log => `
-        <div style="padding:10px;border-bottom:1px solid #1f2937;">
-            <div style="color:#FFD700;font-size:12px;">${log.date} ${new Date(log.timestamp*1000).toLocaleTimeString()}</div>
-            <div style="font-weight:bold;margin-top:4px;">Q: ${log.question}</div>
-            <div style="color:#9ca3af;font-size:13px;">A: ${log.answer}</div>
-        </div>
-    `).join('');
+    var res=await fetch('/api/admin/recent');
+    var data=await res.json();
+    var logs=data.value||data;
+    document.getElementById('historyList').innerHTML=logs.map(log=>`
+        <div style="padding:10px 4px;border-bottom:1px dashed rgba(0,160,240,.18)">
+            <div style="color:#00eaff;font-family:Consolas,monospace;font-size:12px">${log.date} ${new Date(log.timestamp*1000).toLocaleTimeString()}</div>
+            <div style="color:#bcd4ef;margin-top:4px;font-weight:bold">Q: ${log.question}</div>
+            <div style="color:#8aa3c2;font-size:13px;margin-top:2px">A: ${log.answer}</div>
+        </div>`).join('');
 }
-// 用户反馈
+
 async function loadFeedbacks(){
-    const res = await fetch('/api/admin/feedbacks');
-    const feedbacks = await res.json();
-    const good = feedbacks.filter(f=>f.rating==='good').length;
-    const neutral = feedbacks.filter(f=>f.rating==='neutral').length;
-    const bad = feedbacks.filter(f=>f.rating==='bad').length;
-    document.getElementById('goodCount').textContent = good;
-    document.getElementById('neutralCount').textContent = neutral;
-    document.getElementById('badCount').textContent = bad;
-    const listDiv = document.getElementById('feedbackList');
-    listDiv.innerHTML = feedbacks.slice().reverse().map(f => `
-        <div style="padding:8px;border-bottom:1px solid #1f2937;display:flex;justify-content:space-between;">
-            <span>${f.date} ${new Date(f.timestamp*1000).toLocaleTimeString()}</span>
-            <span style="color:${f.rating==='good'?'#4caf50':f.rating==='bad'?'#f44336':'#ff9800'}">${f.rating}</span>
-        </div>
-    `).join('');
+    var res=await fetch('/api/admin/feedbacks');
+    var feedbacks=await res.json();
+    var good=feedbacks.filter(f=>f.rating==='good').length;
+    var neutral=feedbacks.filter(f=>f.rating==='neutral').length;
+    var bad=feedbacks.filter(f=>f.rating==='bad').length;
+    document.getElementById('goodCount').textContent=good;
+    document.getElementById('neutralCount').textContent=neutral;
+    document.getElementById('badCount').textContent=bad;
+    var listDiv=document.getElementById('feedbackList');
+    listDiv.innerHTML=feedbacks.slice().reverse().map(f=>{
+        var ts=new Date(f.timestamp*1000);
+        var pad=x=>x<10?'0'+x:x;
+        var t=pad(ts.getHours())+':'+pad(ts.getMinutes());
+        var cls=f.rating==='good'?'good':f.rating==='bad'?'bad':'warn';
+        var label=f.rating==='good'?'满意':f.rating==='bad'?'不满意':'一般';
+        return `<div class="feed-item"><span class="dot ${cls}"></span><span class="time">${f.date} ${t}</span><span class="content" style="color:${cls==='good'?'#6effa0':cls==='bad'?'#ff8585':'#ffb86b'}">${label}</span></div>`;
+    }).join('');
 }
-// 知识库管理
+
 async function loadDocuments(){
-    const res = await fetch('/api/admin/documents');
-    const docs = await res.json();
-    document.getElementById('docList').innerHTML = docs.map(d => `<div style="padding:6px 0;border-bottom:1px solid #1f2937;">📄 ${d.name}</div>`).join('');
+    var res=await fetch('/api/admin/documents');
+    var docs=await res.json();
+    document.getElementById('docList').innerHTML=docs.map(d=>`<div style="padding:6px 0;border-bottom:1px dashed rgba(0,160,240,.18);color:#bcd4ef;font-size:13px">📄 ${d.name}</div>`).join('');
 }
 async function uploadDocument(){
-    const file = document.getElementById('docFile').files[0];
+    var file=document.getElementById('docFile').files[0];
     if(!file) return;
-    const form = new FormData();
-    form.append('file', file);
-    const res = await fetch('/api/admin/upload-document', {method:'POST', body:form});
-    const data = await res.json();
-    document.getElementById('uploadStatus').textContent = data.status === 'ok' ? '上传成功' : '上传失败';
+    var form=new FormData();form.append('file',file);
+    var res=await fetch('/api/admin/upload-document',{method:'POST',body:form});
+    var data=await res.json();
+    document.getElementById('uploadStatus').textContent=data.status==='ok'?'上传成功':'上传失败';
     loadDocuments();
+}
+async function rebuildIndex(){
+    if(!confirm('重建索引将使新上传的文档生效，确定继续吗？')) return;
+    var res=await fetch('/api/admin/rebuild-index',{method:'POST'});
+    var data=await res.json();
+    alert(data.status==='ok'?'索引重建成功！':'重建失败：'+data.message);
+}
+
+async function loadModels(){
+    try{
+        var res=await fetch('/static/live2d/models.json?t='+Date.now());
+        var data=await res.json();
+        var models=(data.models||[]).filter(m=>m.type==='live2d' && m.modelUrl);
+
+        var builtIn=document.getElementById('builtInList');
+        var custom=document.getElementById('customList');
+        builtIn.innerHTML='';custom.innerHTML='';
+
+        var bCount=0,cCount=0;
+        models.forEach(m=>{
+            var isCustom=m.custom===true;
+            var html=`<div style="display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px dashed rgba(0,160,240,.18)">
+                <div style="width:40px;height:40px;background:rgba(0,60,130,.45);border:1px solid rgba(0,160,240,.35);border-radius:4px;display:flex;align-items:center;justify-content:center;color:#00eaff;font-size:16px">👤</div>
+                <div style="flex:1;min-width:0">
+                    <div style="color:#bcd4ef;font-weight:bold">${m.name||'未命名'}</div>
+                    <div style="color:#6ea5d6;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.modelUrl||''}</div>
+                </div>
+                ${isCustom
+                    ?`<button class="btn" onclick="deleteLive2D('${(m.id||'').replace(/'/g,"\\'")}')">删除</button>`
+                    :`<span style="color:#4f7aa4;font-size:11px;border:1px solid rgba(79,122,164,.35);padding:3px 8px;border-radius:3px">内置 · 不可删除</span>`}
+            </div>`;
+            if(isCustom){custom.innerHTML+=html;cCount++;}
+            else{builtIn.innerHTML+=html;bCount++;}
+        });
+        if(bCount===0) builtIn.innerHTML='<div style="color:#6ea5d6;font-size:12px;padding:12px 4px">暂无内置模型</div>';
+        if(cCount===0) custom.innerHTML='<div style="color:#6ea5d6;font-size:12px;padding:12px 4px">暂无自定义模型，请上传 Live2D ZIP</div>';
+    }catch(e){
+        var b=document.getElementById('builtInList'),c=document.getElementById('customList');
+        if(b) b.innerHTML='<div style="color:#ff8585;font-size:12px">加载失败</div>';
+        if(c) c.innerHTML='<div style="color:#ff8585;font-size:12px">加载失败</div>';
+    }
+}
+
+async function uploadLive2D(input){
+    var file=input.files[0];
+    if(!file) return;
+    var status=document.getElementById('modelUploadStatus');
+    status.textContent='上传中...';
+    try{
+        var form=new FormData();
+        form.append('file',file);
+        var res=await fetch('/api/admin/upload-live2d',{method:'POST',body:form});
+        var data=await res.json();
+        if(data.status==='ok'){
+            status.textContent='上传成功：'+(data.model.name||'');
+            loadModels();
+        }else{
+            status.textContent='上传失败：'+(data.error||'未知错误');
+        }
+    }catch(e){
+        status.textContent='上传失败：网络错误';
+    }
+    input.value='';
+}
+
+async function deleteLive2D(id){
+    if(!confirm('确定删除这个自定义形象吗？删除后不可恢复。')) return;
+    try{
+        var res=await fetch('/api/admin/delete-live2d/'+encodeURIComponent(id),{method:'DELETE'});
+        var data=await res.json();
+        if(data.status==='ok'){
+            showToast('删除成功','success');
+            loadModels();
+        }else{
+            showToast(data.error||'删除失败','error');
+        }
+    }catch(e){
+        showToast('删除失败：网络错误','error');
+    }
+}
+
+function showToast(msg,type){
+    var t=document.createElement('div');
+    t.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(0,20,48,.92);color:#eaf6ff;padding:10px 24px;border-radius:20px;font-size:13px;z-index:9999;border:1px solid rgba(0,180,255,.4);letter-spacing:1px';
+    t.textContent=msg;
+    if(type==='success'){t.style.borderColor='rgba(110,255,160,.6)';t.style.color='#6effa0'}
+    if(type==='error'){t.style.borderColor='rgba(255,133,133,.6)';t.style.color='#ff8585'}
+    document.body.appendChild(t);
+    setTimeout(function(){t.style.opacity='0';setTimeout(function(){t.remove()},300)},2200);
 }
 
 // 初始加载
+setTimeout(function(){document.getElementById('app-loading').style.opacity='0';setTimeout(function(){document.getElementById('app-loading').remove()},500)},500);
 loadDashboard();
-setInterval(loadDashboard, 10000);
-
-async function rebuildIndex(){
-    if(!confirm('重建索引将使新上传的文档生效，确定继续吗？')) return;
-    const btn = event.target;
-    btn.disabled = true;
-    btn.textContent = '重建中...';
-    try {
-        const res = await fetch('/api/admin/rebuild-index', {method:'POST'});
-        const data = await res.json();
-        alert(data.status === 'ok' ? '索引重建成功！' : '重建失败：'+data.message);
-    } catch(e) {
-        alert('网络错误');
-    }
-    btn.disabled = false;
-    btn.textContent = '重建索引';
-}
-
-
-// Toast 提示
-function showToast(msg, type='info'){
-    var t=document.createElement('div');
-    t.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:white;padding:10px 24px;border-radius:20px;font-size:14px;z-index:9999;transition:opacity .3s;';
-    t.textContent=msg;
-    if(type==='success') t.style.background='rgba(40,167,69,.9)';
-    if(type==='error') t.style.background='rgba(220,53,69,.9)';
-    document.body.appendChild(t);
-    setTimeout(function(){t.style.opacity='0';setTimeout(function(){t.remove()},300)},3000);
-}
-
-// 模型管理功能
-async function loadModels() {
-    try {
-        const res = await fetch('/static/live2d/models.json?t=' + Date.now());
-        const data = await res.json();
-        const models = (data.models || []).filter(m => m.type === 'live2d' && m.modelUrl);
-        const listDiv = document.getElementById('modelList');
-        if (!listDiv) return;
-        listDiv.innerHTML = '';
-        
-        models.forEach((model) => {
-            const item = document.createElement('div');
-            const isCustom = model.custom === true;
-            item.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:10px; border-bottom:1px solid #1f2937;';
-            item.innerHTML = `
-                <span style="display:flex; align-items:center; gap:10px;">
-                    <span style="font-size:24px;">🎭</span>
-                    <div>
-                        <div style="font-weight:bold; color:white;">${model.name}</div>
-                        <div style="font-size:12px; color:#6b7280;">${isCustom ? '自定义' : '内置'}</div>
-                    </div>
-                </span>
-                ${isCustom ? '<button class="btn" onclick="deleteModel(\''+model.id+'\')" style="background:#f44336; border-color:#f44336;">删除</button>' : '<span style="color:#6b7280; font-size:12px;">不可删除</span>'}
-            `;
-            listDiv.appendChild(item);
-        });
-        
-        if (models.length === 0) {
-            listDiv.innerHTML = '<div style="text-align:center; color:#6b7280; padding:20px;">暂无模型，请上传 Live2D 模型</div>';
-        }
-    } catch (e) {
-        console.error('加载模型列表失败', e);
-        document.getElementById('modelList').innerHTML = '<div style="text-align:center; color:#f44336; padding:20px;">加载失败</div>';
-    }
-}
-
-async function handleModelUpload(files) {
-    if (files.length === 0) return;
-    
-    const status = document.getElementById('modelUploadStatus');
-    for (var i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (!file.name.endsWith('.zip')) {
-            showToast('仅支持 ZIP 格式文件', 'error');
-            continue;
-        }
-        
-        const form = new FormData();
-        form.append('file', file);
-        status.textContent = '正在上传: ' + file.name + '...';
-        
-        try {
-            const res = await fetch('/api/admin/upload-live2d', { method: 'POST', body: form });
-            const data = await res.json();
-            if (data.status === 'ok') {
-                showToast('上传成功: ' + data.model.name, 'success');
-            } else {
-                showToast(data.error || '上传失败', 'error');
-            }
-        } catch (e) {
-            showToast('上传失败', 'error');
-        }
-    }
-    
-    status.textContent = '';
-    loadModels();
-}
-
-// 文件选择事件
-document.getElementById('modelFile').addEventListener('change', function(e) {
-    handleModelUpload(e.target.files);
-});
-
-// 拖拽上传支持
-var uploadZone = document.getElementById('uploadZone');
-if (uploadZone) {
-    uploadZone.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        uploadZone.style.borderColor = '#FFD700';
-    });
-    uploadZone.addEventListener('dragleave', function() {
-        uploadZone.style.borderColor = '#2a3347';
-    });
-    uploadZone.addEventListener('drop', function(e) {
-        e.preventDefault();
-        uploadZone.style.borderColor = '#2a3347';
-        handleModelUpload(e.dataTransfer.files);
-    });
-}
-
-async function deleteModel(modelId) {
-    if (!confirm('确定要删除这个自定义形象吗？')) return;
-    
-    try {
-        const res = await fetch('/api/admin/delete-live2d/' + modelId, { method: 'DELETE' });
-        const data = await res.json();
-        if (data.status === 'ok') {
-            showToast('删除成功', 'success');
-            loadModels();
-        } else {
-            showToast(data.error || '删除失败', 'error');
-        }
-    } catch (e) {
-        showToast('删除失败', 'error');
-    }
-}
-
-// 当切换到模型管理页时自动加载列表
-const originalShowPage = showPage;
-showPage = function(name) {
-    originalShowPage(name);
-    if (name === 'models') loadModels();
-};
-
-var loadingStartTime = Date.now();
-
-function hideLoading(){
-    var elapsed = Date.now() - loadingStartTime;
-    var delay = Math.max(2500 - elapsed, 500);
-    setTimeout(function(){
-        var loading=document.getElementById('app-loading');
-        if(loading){
-            loading.style.opacity='0';
-            setTimeout(function(){loading.remove()},500);
-        }
-    }, delay);
-}
-
-window.addEventListener('load', function(){
-    hideLoading();
-});
-
+setInterval(loadDashboard,10000);
 </script>
 </body>
 </html>
