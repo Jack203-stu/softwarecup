@@ -32,10 +32,7 @@ html,body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;height:100%;ove
 @keyframes loading-progress{0%{width:0%;margin-left:-30%}50%{width:50%;margin-left:25%}100%{width:100%;margin-left:100%}}
 .loading-text{font-size:12px;color:#6ea5d6;letter-spacing:4px;margin-top:6px}
 
-.bg-atlas{position:fixed;inset:0;z-index:0;pointer-events:none}
-.bg-atlas .bg-slide{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 2.4s ease;filter:saturate(.85) brightness(.75)}
-.bg-atlas .bg-slide.active{opacity:.28}
-.bg-atlas .bg-mask{position:absolute;inset:0;background:
+.bg-atlas{position:fixed;inset:0;z-index:0;pointer-events:none;background:
     radial-gradient(ellipse at 15% 10%,rgba(0,120,200,.18),transparent 55%),
     radial-gradient(ellipse at 85% 90%,rgba(80,20,160,.25),transparent 55%),
     linear-gradient(180deg,#02060f 0%,#050d1a 55%,#02060f 100%)}
@@ -251,8 +248,7 @@ html,body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;height:100%;ove
 <body>
 <div id="app-loading"><div class="loading-content"><div class="koi-cube"></div><div class="loading-bar"><div class="loading-bar-fill"></div></div><div class="loading-text">正在连接 · 小灵</div></div></div>
 
-<div class="bg-atlas" id="bgAtlas">
-    <div class="bg-mask"></div>
+<div class="bg-atlas">
     <div class="grid"></div>
     <div class="stars" id="bgStars"></div>
     <div class="noise"></div>
@@ -263,7 +259,7 @@ html,body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;height:100%;ove
 <div class="topbar">
     <div class="brand"><span class="b-dot"></span><span class="b-name">灵山胜境 · AI导游</span><span class="b-sub">LINGSHAN · XIAOLING</span></div>
     <div class="actions">
-        <a href="/static/avatar-manage.html" target="_blank">设置</a>
+        <a href="/static/avatar-manage.html">设置</a>
         <a href="/admin" target="_blank">驾驶舱</a>
     </div>
 </div>
@@ -298,6 +294,10 @@ html,body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;height:100%;ove
         <div class="ribbon">
             <div class="ribbon-glass">
                 <div class="typing" id="typing"><span></span><span></span><span></span></div>
+                <div id="visionThumbs" style="display:none;align-items:center;gap:6px;padding:0 6px 0 10px;background:rgba(255,255,255,.04);border-radius:16px;margin-right:6px;border:1px solid rgba(0,234,255,.25)">
+                    <img id="visionPreview" style="width:36px;height:26px;object-fit:cover;border-radius:4px;border:1px solid rgba(0,234,255,.35);background:rgba(0,234,255,.06)">
+                    <button onclick="cancelVisionQuestion()" title="取消图片" style="padding:0 6px;color:#00eaff;background:transparent;border:none;font-size:14px;cursor:pointer">✕</button>
+                </div>
                 <button class="ic-voice" id="btnVoice" onclick="toggleVoice()" title="语音输入">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
                 </button>
@@ -331,9 +331,10 @@ html,body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;height:100%;ove
                     <svg viewBox="0 0 24 24" fill="none" stroke="#00eaff" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
                     <span class="rt-label">传说故事</span>
                 </div>
-                <div class="rt" onclick="sendQuick('这张图片里是哪个景点？（请先忽略，需上传图片）')">
+                <div class="rt" onclick="document.getElementById('visionFileInput').click();" title="拍照 / 选择图片">
                     <svg viewBox="0 0 24 24" fill="none" stroke="#00eaff" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2.5"/><path d="M4 18l4.5-4 3 2.5 3-3 5.5 4.5"/></svg>
                     <span class="rt-label">拍照识图</span>
+                    <input type="file" id="visionFileInput" accept="image/*" capture="environment" style="display:none" onchange="onVisionFile(this)">
                 </div>
             </div>
         </div>
@@ -358,6 +359,7 @@ var mediaRecorder = null;
 var audioChunks = [];
 var currentAudio = null;
 var isLive2DActive = false;
+var pendingVisionFile = null;
 
 (function(){
   var c=document.getElementById('bgStars');if(!c)return;
@@ -374,9 +376,22 @@ function showToast(msg){
 }
 
 async function sendFeedback(rating, btn){
-  try{await fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rating:rating})});}catch(e){}
   var row=document.getElementById('feedbackRow');
-  if(row){row.innerHTML='<div class="fb-thanks">感谢反馈 ✦</div>';}
+  if(!row||row.dataset.sent==='1')return;
+  if(btn){btn.disabled=true;btn.style.opacity='.55';}
+  var ok=false;
+  try{
+    var res=await fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rating:rating})});
+    ok=res&&res.ok;
+  }catch(e){ok=false;}
+  if(ok){
+    row.dataset.sent='1';
+    row.innerHTML='<div class="fb-thanks">感谢反馈 ✦</div>';
+    showToast('反馈已记录 ✓');
+  }else{
+    if(btn){btn.disabled=false;btn.style.opacity='1';}
+    showToast('反馈失败，请检查网络');
+  }
 }
 
 async function loadModelsConfig(){
@@ -448,12 +463,23 @@ function restoreSVG(){
 function sendMessage(){
   var input=document.getElementById('inputBox');
   var text=input.value.trim();
+  if(pendingVisionFile){
+    var q=text||'';
+    input.value='';
+    sendVisionMessage(q);
+    return;
+  }
   if(!text)return;
   input.value='';
   addMessage('user',text);
   getAIReply(text);
 }
 function sendQuick(text){
+  if(pendingVisionFile){
+    document.getElementById('inputBox').value=text;
+    sendMessage();
+    return;
+  }
   document.getElementById('inputBox').value=text;
   sendMessage();
 }
@@ -620,45 +646,115 @@ async function sendVoiceMessage(blob){
   }catch(e){showToast('语音识别失败');}
 }
 
+function addMessageWithImage(role, text, imgSrc, emotionTag){
+  var div=document.createElement('div');
+  div.className='msg '+role;
+  var inner='';
+  if(imgSrc){
+    inner+='<div style="margin-bottom:6px"><img src="'+imgSrc+'" style="max-width:200px;max-height:150px;border-radius:8px;border:1px solid rgba(0,234,255,.25);display:block;background:rgba(0,234,255,.06)"></div>';
+  }
+  if(role==='bot'&&emotionTag){
+    inner+=text+'<span class="emotion-tag">'+emotionTag+'</span>';
+  }else{
+    inner+=escapeHtml(text);
+  }
+  div.innerHTML=inner;
+  var msgs=document.getElementById('messages');
+  msgs.appendChild(div);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});
+}
+
+function onVisionFile(input){
+  var f=input.files&&input.files[0];
+  input.value='';
+  if(!f)return;
+  if(f.size>15*1024*1024){showToast('图片太大（>15MB），请换一张');return;}
+  pendingVisionFile=f;
+  var url=URL.createObjectURL(f);
+  var img=document.getElementById('visionPreview');
+  if(img)img.src=url;
+  var thumbs=document.getElementById('visionThumbs');
+  if(thumbs){thumbs.style.display='flex';}
+  var inp=document.getElementById('inputBox');
+  if(inp){inp.placeholder='想问图片里什么？直接回车就能识别';inp.focus();}
+}
+
+function cancelVisionQuestion(){
+  pendingVisionFile=null;
+  var img=document.getElementById('visionPreview');
+  if(img)img.removeAttribute('src');
+  var thumbs=document.getElementById('visionThumbs');
+  if(thumbs)thumbs.style.display='none';
+  var inp=document.getElementById('inputBox');
+  if(inp)inp.placeholder='和小灵说点什么 · 支持语音... · 识别图片中是啥也可以';
+}
+
+async function sendVisionMessage(question){
+  if(!pendingVisionFile){return false;}
+  var img=document.getElementById('visionPreview');
+  var localSrc=img?img.src:'';
+  addMessageWithImage('user', question||'请告诉我这张图片里是什么景点，有什么历史与特色？', localSrc);
+  var typing=document.getElementById('typing');
+  var file=pendingVisionFile;
+  pendingVisionFile=null;
+  cancelVisionQuestion();
+  typing.classList.add('show');
+  var fileSizeMB=(file.size/1024/1024).toFixed(1);
+  console.log('[vision] upload', file.name, fileSizeMB+'MB', 'q=', question);
+  try{
+    var fd=new FormData();
+    fd.append('file', file, file.name||'vision.jpg');
+    fd.append('text', question||'请告诉我这张图片里是什么景点，有什么历史与特色？');
+    var res=await fetch('/api/chat/image',{method:'POST',body:fd});
+    var rawText=await res.text();
+    var data=null;
+    try{ data=JSON.parse(rawText); }catch(pe){
+      console.error('[vision] 响应不是 JSON, status=', res.status, 'body=', rawText.slice(0,400));
+      typing.classList.remove('show');
+      showToast('图片识别失败（返回内容异常，HTTP '+res.status+'）');
+      addMessage('bot','图片识别失败：服务器返回内容异常（HTTP '+res.status+'）。请刷新页面重试。');
+      return true;
+    }
+    if(!res.ok){
+      typing.classList.remove('show');
+      var errMsg=(data&&data.error)||('HTTP '+res.status);
+      console.error('[vision] HTTP error', res.status, data);
+      showToast('图片识别失败：'+errMsg);
+      addMessage('bot','图片识别失败：'+errMsg+'。请刷新页面后再试。');
+      return true;
+    }
+    typing.classList.remove('show');
+    var answer=data.answer||'抱歉，我没看懂这张图。';
+    var audioUrl=data.audioUrl;
+    addMessageWithImage('bot', answer, null);
+    if(audioUrl){
+      playAudioFromUrl(audioUrl, answer);
+    }else if(window.sentimentAnalyzer && isLive2DActive){
+      var timeline=window.sentimentAnalyzer.analyzeWithTimeline(answer);
+      playExpressionTimeline(timeline);
+    }
+    if(isLive2DActive && window.live2dManager){
+      var emotion = (window.sentimentAnalyzer&&window.sentimentAnalyzer.analyze(answer).emotion)||'neutral';
+      window.live2dManager.playExpression(emotion);
+    }
+  }catch(e){
+    typing.classList.remove('show');
+    console.error('[vision] fetch 异常:', e);
+    showToast('图片识别失败：'+(e&&e.message?e.message:e));
+    addMessage('bot','图片识别失败：浏览器无法连接到服务（'+(e&&e.name?e.name:e)+'）。请确认服务在运行，或刷新页面后重试。');
+  }
+  return true;
+}
+
 var loadingStartTime=Date.now();
 window.onload=function(){
   loadModelsConfig();
   fetch('/api/visit');
-  initBgSlideshow();
 };
-
-var bgSlideshowInterval=null;
-async function initBgSlideshow(){
-  var c=document.getElementById('bgAtlas');if(!c)return;
-  var images=[];
-  try{
-    var res=await fetch('/api/admin/backgrounds');
-    var arr=await res.json();
-    if(arr&&arr.length>0)images=arr.map(function(b){return b.url;});
-  }catch(e){}
-  if(images.length===0){
-    images=[
-      'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=extreme%20dark%20cyberpunk%20buddhist%20temple%20at%20night%2C%20cyan%20and%20blue%20neon%20lights%2C%20mist%2C%20holy%20mountain%20silhouette%2C%20spiritual%20atmosphere&image_size=landscape_16_9',
-      'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=vast%20dark%20starfield%20sky%2C%20a%20giant%20golden%20buddha%20silhouette%20on%20mountain%2C%20cyan%20nebula%20glow%2C%20deep%20blue%20and%20violet%20haze&image_size=landscape_16_9',
-      'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=futuristic%20zen%20garden%20at%20night%2C%20floating%20lotus%20lanterns%2C%20cyan%20mist%2C%20dark%20reflective%20water%2C%20blue%20and%20cyan%20neon%20accents&image_size=landscape_16_9'
-    ];
-  }
-  var mask=c.querySelector('.bg-mask');
-  images.forEach(function(url,i){
-    var slide=document.createElement('div');
-    slide.className='bg-slide'+(i===0?' active':'');
-    slide.style.backgroundImage='url('+url+')';
-    c.insertBefore(slide,mask);
-  });
-  var idx=0;
-  bgSlideshowInterval=setInterval(function(){
-    var slides=c.querySelectorAll('.bg-slide');
-    if(slides.length<2)return;
-    slides[idx].classList.remove('active');
-    idx=(idx+1)%slides.length;
-    slides[idx].classList.add('active');
-  },7000);
-}
 
 function hideLoading(){
   var elapsed=Date.now()-loadingStartTime;

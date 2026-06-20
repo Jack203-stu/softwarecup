@@ -58,5 +58,65 @@
     "timestamp": 1781531697.1030633,
     "date": "2026-06-15",
     "rating": "bad"
+  },
+  {
+    "timestamp": 1781619208.2792222,
+    "date": "2026-06-16",
+    "rating": "good"
+  },
+  {
+    "timestamp": 1781621147.26023,
+    "date": "2026-06-16",
+    "rating": "neutral"
+  },
+  {
+    "timestamp": 1781891949.9718547,
+    "date": "2026-06-20",
+    "rating": "good"
+  },
+  {
+    "timestamp": 1781891950.0225759,
+    "date": "2026-06-20",
+    "rating": "good"
+  },
+  {
+    "timestamp": 1781892452.1933272,
+    "date": "2026-06-20",
+    "rating": "neutral"
+  },
+  {
+    "timestamp": 1781959677.4909387,
+    "date": "2026-06-20",
+    "rating": "good"
+  },
+  {
+    "timestamp": 1781961516.30237,
+    "date": "2026-06-20",
+    "rating": "good"
+  },
+  {
+    "timestamp": 1781961605.3655167,
+    "date": "2026-06-20",
+    "rating": "good"
+  },
+  {
+    "timestamp": 1781961748.8473415,
+    "date": "2026-06-20",
+    "rating": "good"
+  },
+  {
+    "timestamp": 1781961748.850855,
+    "date": "2026-06-20",
+    "rating": "good"
+  },
+  {
+    "timestamp": 1781962112.7694347,
+    "date": "2026-06-20",
+    "rating": "neutral"
+  },
+  {
+    "timestamp": 1781962180.4901748,
+    "date": "2026-06-20",
+    "rating": "neutral"
   }
 ]

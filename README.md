@@ -1,36 +1,52 @@
-# 灵山胜境 AI数字人导游
+# 灵山胜境 AI 数字人导游（小灵）
 
-一个基于 Live2D 数字人和 RAG 知识库的智能导游系统，数字人能够实时语音播报、对口型并展示丰富的表情。
+一个基于 **Live2D + RAG 知识库** 的景区智能导游系统。游客可以通过文字、语音或图片向"小灵"提问，系统返回带 TTS 语音的回答，并由 Live2D 数字人做对口型、表情和动作动画。
 
-## 系统要求
+## 功能概览
+
+- **Live2D 数字人**：支持多个内置形象（小春 haru、Nico、Tsumiki、Unitychan、GF、Z16 等），可在形象管理页上传自定义 Live2D ZIP 模型。
+- **RAG 智能问答**：基于灵山胜境景区知识库，融合向量检索（ChromaDB / LangChain）+ 大模型推理。
+- **多模态交互**：文字问答 / 语音问答（FunASR ASR）/ 图片问答（DashScope `qwen-vl-plus`）。
+- **语音播报 & 对口型**：Edge TTS 合成 WAV 音频，前端 Web Audio 根据音频能量驱动口型动画。
+- **表情分析**：前端 sentiment-analyzer.js 根据回答文本分析情绪，切换开心 / 惊讶 / 生气等表情。
+- **音色切换**：6 种中文音色（晓晓 / 小艺 / 云健 / 云希 / 云霞 / 云阳）。
+- **运营后台**：`/admin` 数据大屏（今日人次、近 7 天、满意度、交互历史、导出 JSON/CSV）、知识库文档管理、形象管理。
+- **形象 / 背景管理**：上传 / 删除 PNG/JPG 形象图与背景图；管理 Live2D 模型列表。
+- **交互日志**：自动记录每次问答（问题、答案、耗时、来源）与用户反馈。
+
+## 运行要求
 
 - Python 3.10+
-- 8GB+ 内存
-- Windows/Linux/macOS
-- 网络连接（用于调用阿里云百炼 API）
+- FFmpeg（用于把 webm 转码为 16kHz WAV）
+- 8GB+ 内存（FunASR + Chroma + 大模型推理）
+- Windows / Linux / macOS
+- 网络连接（调用阿里云百炼 / DashScope API）
 
 ## 快速开始
 
-### 1. 安装依赖
+### 1. 安装 Python 依赖
+
+项目根目录下没有 `requirements.txt`，请按下面清单安装：
 
 ```bash
-cd backend
-pip install -r requirements.txt
+pip install fastapi uvicorn
+pip install edge-tts funasr chromadb langchain openai dashscope pydantic python-multipart
+pip install websockets httpx numpy pydub
 ```
+
+> FunASR 首次启动会自动下载模型（约 1GB），请预留网络。
 
 ### 2. 配置 API Key
 
-设置阿里云百炼 API Key：
+```powershell
+# Windows PowerShell
+$env:DASHSCOPE_API_KEY="your-dashscope-key"
 
-```bash
+# Windows CMD
+set DASHSCOPE_API_KEY=your-dashscope-key
+
 # Linux/macOS
-export DASHSCOPE_API_KEY="your-api-key"
-
-# Windows (PowerShell)
-$env:DASHSCOPE_API_KEY="your-api-key"
-
-# Windows (CMD)
-set DASHSCOPE_API_KEY=your-api-key
+export DASHSCOPE_API_KEY="your-dashscope-key"
 ```
 
 ### 3. 启动服务
@@ -38,84 +54,131 @@ set DASHSCOPE_API_KEY=your-api-key
 ```bash
 cd backend
 python main.py
-# 或使用 uvicorn
+# 或
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-### 4. 访问应用
+启动后控制台会打印：
 
-- 游客端：http://localhost:8000
+```
+[SERVER] Running at http://localhost:8000 | Admin: http://localhost:8000/admin
+```
+
+### 4. 访问地址
+
+- 游客主页：http://localhost:8000/
 - 管理后台：http://localhost:8000/admin
 - 形象管理：http://localhost:8000/static/avatar-manage.html
 
-## 主要功能
-
-### 🎭 数字人形象
-
-- **9个内置形象**：小灵、雫、小春、阳斗、小黑、多罗罗、未来、艾普西隆、响、千岁
-- **自定义上传**：支持上传 Live2D 模型（ZIP格式）添加自定义形象
-- **实时预览**：在管理页面预览不同形象
-
-### 🔊 语音功能
-
-- **语音播报**：数字人能够实时语音播报回答内容
-- **对口型**：语音与口型动画精确同步
-- **音色选择**：支持6种中文音色（晓晓、小艺、云健、云希、云霞、云阳）
-- **语音输入**：支持语音输入问题
-
-### 😊 表情互动
-
-- **情感分析**：根据回答内容分析情感
-- **表情动画**：开心、惊讶、生气等多种表情
-- **时间线动画**：表情随回答内容动态变化
-
-### 📚 知识库
-
-- **RAG 问答**：基于灵山胜境景区知识的智能问答
-- **向量检索**：使用 ChromaDB 进行语义检索
-- **快速回答**：常见问题预设回答，无需调用大模型
+主页右上角：
+- **设置**：当前页跳转到 `/static/avatar-manage.html`（形象 / 音色管理）
+- **驾驶舱**：在新标签页打开 `/admin`
 
 ## 目录结构
 
 ```
-backend/
-├── main.py              # 主服务入口
-├── core/
-│   ├── asr_tts.py       # 语音识别与合成
-│   ├── rag_engine.py     # RAG 问答引擎
-│   ├── knowledge_base.py # 知识库管理
-│   └── logger.py         # 交互日志
-├── static/
-│   ├── index.html        # 主页
-│   ├── avatar-manage.html # 形象管理页面
-│   └── live2d/           # Live2D 模型资源
-├── data/
-│   ├── raw/              # 原始知识库文本
-│   ├── processed/         # 生成的音频文件
-│   └── chroma_storage/   # 向量数据库
-└── models.json           # 形象配置
+softwarecup/
+├─ backend/                    # FastAPI 服务
+│  ├─ main.py                  # 主入口（所有路由）
+│  ├─ config.py                # 预留配置
+│  ├─ core/
+│  │  ├─ rag_engine.py         # RAG 问答（向量检索 + LLM 推理）
+│  │  ├─ knowledge_base.py     # 知识库管理（向量库构建）
+│  │  ├─ asr_tts.py            # FunASR（语音识别）+ Edge TTS（语音合成）
+│  │  └─ logger.py             # 交互日志 / 反馈 / 统计
+│  └─ static/
+│     ├─ index.html            # 游客主页（带 Live2D 显示 + 对话）
+│     ├─ admin.html            # 管理后台页面
+│     ├─ avatar-manage.html    # 形象 / 背景 / 音色管理页面
+│     ├─ avatar.html
+│     ├─ js/
+│     │  ├─ live2d-manager.js        # Live2D Cubism + PixiJS 渲染与口型
+│     │  ├─ sentiment-analyzer.js    # 中文情绪关键词分析
+│     │  ├─ pixi.min.js
+│     │  └─ live2dcubismcore.min.js / live2dcubismframework.min.js
+│     ├─ cubism-sdk/           # Live2D Cubism SDK Core / Framework
+│     ├─ live2d/
+│     │  ├─ models.json                      # 全部数字人模型清单
+│     │  └─ custom_models/*/...              # 上传后的 Live2D ZIP 解压目录
+│     ├─ backgrounds/          # 景区背景图
+│     └─ (avatars/  models/)   # 运行时生成（上传时写入）
+├─ data/                       # 知识库与音频产物（与 backend 同级）
+│  ├─ raw/                     # 原始知识库文档 (.txt / .pdf / .docx)
+│  ├─ processed/               # 生成的 WAV / 图片临时文件
+│  └─ chroma_storage/          # ChromaDB 向量存储
+└─ README.md
 ```
 
-## 配置文件
+## API 接口
 
-### models.json
+### 页面
 
-每个形象的配置项：
+| 方法 | URL | 说明 |
+|------|-----|------|
+| GET | `/` | 游客主页 |
+| GET | `/admin` | 管理后台 |
+| GET | `/static/avatar-manage.html` | 形象管理页 |
 
-```json
-{
-  "id": "shizuku",
-  "name": "雫·优雅女士",
-  "modelUrl": "/static/live2d/node_modules/live2d-widget-model-shizuku/assets/shizuku.model.json",
-  "voice": "zh-CN-XiaoxiaoNeural",
-  "type": "live2d"
-}
-```
+### 游客端（对话 / 语音）
 
-### 可用音色
+| 方法 | URL | 说明 |
+|------|-----|------|
+| POST | `/api/chat/tts` | 文字问答 + 返回 TTS WAV（`ChatRequest{text, voice}`） |
+| POST | `/api/chat/text` | 仅文字问答（不生成语音） |
+| POST | `/api/chat/voice` | 语音上传问答（multipart，字段 `file`，WebM→WAV→ASR） |
+| POST | `/api/chat/image` | 图片问答（`text` + 文件字段 `file`，DashScope `qwen-vl-plus`） |
+| POST | `/api/chat/clear` | 清空对话历史（调用 `rag.clear_history()`） |
+| GET  | `/api/audio/{filename}` | 直接返回合成好的 WAV |
 
-| 音色 ID | 名称 | 性别 | 风格 |
-|---------|------|------|------|
+### 配置（音色等）
+
+| 方法 | URL | 说明 |
+|------|-----|------|
+| POST | `/api/config/set-voice` | 设置 TTS 音色（query: `voice_id`） |
+| GET  | `/api/config/voices` | 返回支持的 6 种音色与当前音色 |
+
+### 反馈与访问
+
+| 方法 | URL | 说明 |
+|------|-----|------|
+| POST | `/api/feedback` | 提交反馈（`{rating: "good"|"neutral"|"bad"}`） |
+| GET  | `/api/visit` | 记录一次访客 |
+
+### 管理后台
+
+| 方法 | URL | 说明 |
+|------|-----|------|
+| GET  | `/api/admin/dashboard` | 运营大屏统计 |
+| GET  | `/api/admin/recent?limit=20` | 最近交互记录 |
+| GET  | `/api/admin/feedbacks` | 用户反馈列表 |
+| GET  | `/api/admin/stats/daily` | 近 7 天每日问答量 |
+| GET  | `/api/admin/export?format=json|csv` | 导出交互日志 |
+| GET  | `/api/admin/documents` | 知识库文档列表 |
+| POST | `/api/admin/upload-document` | 上传知识库文档 |
+| POST | `/api/admin/rebuild-index` | 重建 ChromaDB 向量索引 |
+| GET  | `/api/admin/models` | 数字人模型列表 |
+| POST | `/api/admin/models/upload` | 上传模型图片 |
+| DELETE | `/api/admin/models/{filename}` | 删除模型图片 |
+| POST | `/api/admin/upload-live2d` | 上传 Live2D 模型 ZIP（自动解压并写 `models.json`） |
+| DELETE | `/api/admin/delete-live2d/{id}` | 删除自定义 Live2D 模型 |
+| GET  | `/api/admin/refresh-models` | 刷新模型列表占位 |
+| POST | `/api/admin/upload-avatar` | 形象图上传 |
+| DELETE | `/api/admin/avatars/{filename}` | 删除形象图 |
+| GET  | `/api/admin/avatars` | 形象图列表 |
+| POST | `/api/admin/upload-background` | 背景图上传 |
+| DELETE | `/api/admin/delete-background/{filename}` | 删除背景图 |
+| GET  | `/api/admin/backgrounds` | 背景图列表 |
+
+### 其他
+
+| 方法 | URL | 说明 |
+|------|-----|------|
+| GET  | `/health` | 健康检查 |
+
+## 音色列表（Edge TTS Neural）
+
+| ID | 名称 | 性别 | 风格 |
+|----|------|------|------|
 | zh-CN-XiaoxiaoNeural | 晓晓 | 女 | 温暖亲切 |
 | zh-CN-XiaoyiNeural | 小艺 | 女 | 活泼可爱 |
 | zh-CN-YunjianNeural | 云健 | 男 | 激情有力 |
@@ -123,121 +186,68 @@ backend/
 | zh-CN-YunxiaNeural | 云霞 | 男 | 温柔可爱 |
 | zh-CN-YunyangNeural | 云阳 | 男 | 专业沉稳 |
 
-## API 接口
+## 内置形象（models.json）
 
-### 游客端接口
+系统内置多种 Live2D Cubism 与 2D 形象。`models.json` 结构示例：
 
-| 接口 | 方法 | 说明 |
-|------|------|------|
-| `/` | GET | 主页 |
-| `/api/chat/tts` | POST | 文字转语音问答 |
-| `/api/chat/text` | POST | 纯文字问答 |
-| `/api/chat/voice` | POST | 语音输入问答 |
-| `/api/chat/image` | POST | 图片提问（多模态） |
-| `/api/config/set-voice` | POST | 设置音色 |
-| `/api/config/voices` | GET | 获取音色列表 |
-| `/api/feedback` | POST | 提交用户反馈 |
+```json
+{
+  "id": "shizuku",
+  "name": "雫·优雅女士",
+  "type": "live2d",
+  "modelUrl": "/static/live2d/.../shizuku.model.json",
+  "voice": "zh-CN-XiaoxiaoNeural",
+  "custom": false
+}
+```
 
-### 管理后台接口
+上传 ZIP 后的自定义模型会追加一条 `custom: true` 记录。
 
-| 接口 | 方法 | 说明 |
-|------|------|------|
-| `/admin` | GET | 管理后台页面 |
-| `/api/admin/dashboard` | GET | 获取运营数据大屏 |
-| `/api/admin/recent` | GET | 获取最近交互记录 |
-| `/api/admin/feedbacks` | GET | 获取用户反馈列表 |
-| `/api/admin/stats/daily` | GET | 获取近7天服务量 |
-| `/api/admin/export` | GET | 导出交互日志（JSON/CSV） |
-| `/api/admin/documents` | GET | 获取知识库文档列表 |
-| `/api/admin/upload-document` | POST | 上传知识库文档 |
-| `/api/admin/rebuild-index` | POST | 重建向量索引 |
-| `/api/admin/upload-live2d` | POST | 上传 Live2D 模型 |
-| `/api/admin/delete-live2d/{id}` | DELETE | 删除自定义 Live2D 模型 |
-| `/api/admin/models` | GET | 获取数字人模型列表 |
-| `/api/admin/models/upload` | POST | 上传模型图片 |
-| `/api/admin/models/{filename}` | DELETE | 删除模型图片 |
+## 预置快速回答（不走大模型）
 
-## 技术栈
-
-- **后端**：FastAPI + Uvicorn
-- **语音合成**：Edge TTS
-- **语音识别**：FunASR
-- **知识库**：ChromaDB + LangChain + 阿里云百炼
-- **前端**：PixiJS + pixi-live2d-display + Live2D Cubism
-- **实时动画**：Web Audio API（口型同步）
+为常见问题"你是谁 / 介绍自己 / 你好 / 嗨"设置了固定答复，返回更快，也会继续合成 TTS。可在 `backend/main.py` 的 `PRESET_REPLIES` 中扩充。
 
 ## 使用说明
 
-### 游客端使用
+### 游客端
 
-1. 打开主页 http://localhost:8000
-2. 选择喜欢的数字人形象（通过"管理"按钮）
-3. 在输入框输入问题或使用语音输入
-4. 数字人将语音播报回答并配合口型和表情
+1. 打开 http://localhost:8000/
+2. 右上角 **设置** → 当前页跳转到形象管理页，选择形象与音色；**返回主页**继续对话。
+3. 输入框输入问题，或点麦克风进行语音输入。
+4. 回答返回后：音频自动播放，Live2D 模型会做口型与情绪表情。
 
-### 形象管理
+### 形象管理页（avatar-manage.html）
 
-1. 访问 http://localhost:8000/static/avatar-manage.html
-2. **选择形象**：点击卡片上的"选择"按钮
-3. **预览形象**：点击"预览"按钮查看效果
-4. **上传形象**：拖拽或选择 Live2D 模型 ZIP 文件
-5. **选择音色**：在页面顶部选择语音音色
+- 选择 / 预览 Live2D 形象
+- 上传 Live2D ZIP（需含 `.model.json`）
+- 上传 / 删除 PNG/JPG 形象与背景
+- 切换 TTS 音色
 
-### 添加自定义形象
+### 管理后台（/admin）
 
-1. 准备 Live2D 模型文件（需包含 .model.json）
-2. 压缩为 ZIP 格式
-3. 在管理页面上传
-4. 上传成功后自动出现在列表中
-
-### 管理后台
-
-访问 http://localhost:8000/admin 进入管理后台，包含以下功能模块：
-
-**📊 数据大屏**
-- 今日服务人次统计
-- 本周累计问答数量
-- 游客满意度（基于用户反馈）
-- 平均响应时间
-- 热门问题 Top 5
-- 近7天服务量柱状图
-- 支持数据导出（JSON/CSV）
-
-**📋 交互历史**
-- 查看最近交互记录
-- 显示提问时间、问题内容和回答内容
-
-**💬 用户反馈**
-- 统计满意/一般/不满意数量
-- 查看所有反馈记录及时间
-
-**📚 知识库管理**
-- 上传新文档（支持 .txt/.docx/.pdf）
-- 查看已上传文档列表
-- 手动重建向量索引
-
-**🎭 模型管理**
-- 上传数字人形象图片
-- 查看已上传模型列表
-- 删除自定义模型
-
-## 注意事项
-
-- API Key 需要从阿里云百炼平台申请
-- 首次使用会自动下载 ASR 模型（约 1GB）
-- 向量知识库只需构建一次，后续启动会复用
-- 建议使用 Chrome/Firefox/Edge 等现代浏览器
+- 数据大屏：今日服务、近 7 天、满意度、交互历史、导出 JSON/CSV
+- 知识库：上传 `.txt/.pdf/.docx`，手动触发重建向量索引
+- 形象管理：上传 PNG/JPG 模型图；上传 / 删除 Live2D ZIP
 
 ## 常见问题
 
-**Q: 数字人口型不匹配怎么办？**
-A: 确保使用 HTTPS 或 localhost 访问，浏览器音频策略可能限制非安全源。
+**Q: 没有 requirements.txt？**
+项目未随代码附带依赖清单，请按"快速开始"中的 pip 命令安装。
+
+**Q: 为什么语音输入失败？**
+需要本机安装 `ffmpeg` 并在 PATH 中，用于把浏览器录制的 WebM 转码为 16kHz WAV。
+
+**Q: 数字人口型不匹配 / 音频不播放？**
+使用 Chrome / Edge / Firefox 最新版，建议用 HTTPS 或 `localhost`（浏览器音频策略对非安全源有限制）。
 
 **Q: 响应时间较长？**
-A: RAG 检索约 1-2 秒，LLM 推理约 2-3 秒，TTS 合成约 1-2 秒。
+FunASR ASR 约 1-2 秒，RAG 检索约 1-2 秒，LLM 推理约 2-4 秒，Edge TTS 约 1-2 秒。
 
-**Q: 如何添加更多知识库内容？**
-A: 在 `backend/data/raw/` 目录下添加 .txt 文件，然后重新构建知识库。
+**Q: 如何新增知识库内容？**
+把 `.txt / .pdf / .docx` 放到 `data/raw/`，访问管理后台 → 知识库 → 重建向量索引。
+
+**Q: 可以用 https 部署吗？**
+可以。推荐 Nginx 反向代理到 `http://127.0.0.1:8000`，并给静态资源（`/static/`）开启缓存。
 
 ## 许可证
 

@@ -135,6 +135,40 @@ body{background:
             .cockpit{grid-template-columns:1fr;grid-template-rows:auto auto auto;height:auto}
             .cockpit-col{gap:10px}
         }
+
+        @keyframes sciRingSpin{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
+        @keyframes sciRingPulse{0%,100%{opacity:.2}50%{opacity:1}}
+        .sci-ring{
+            position:absolute;left:50%;top:45%;
+            width:52%;height:52%;
+            border-radius:50%;
+            background:conic-gradient(from 0deg,
+                transparent 0deg,transparent 5deg,
+                #00f0ff 14deg,
+                rgba(0,240,255,.0) 24deg,
+                rgba(0,240,255,.0) 180deg,
+                rgba(0,200,255,.6) 210deg,
+                rgba(0,200,255,.0) 240deg,
+                rgba(0,240,255,.0) 360deg);
+            -webkit-mask:radial-gradient(transparent 0,transparent 42%,#000 42%,#000 46%,transparent 46%,transparent 100%);
+                    mask:radial-gradient(transparent 0,transparent 42%,#000 42%,#000 46%,transparent 46%,transparent 100%);
+            -webkit-filter:drop-shadow(0 0 18px rgba(0,240,255,.95)) drop-shadow(0 0 4px #7cffff);
+                    filter:drop-shadow(0 0 18px rgba(0,240,255,.95)) drop-shadow(0 0 4px #7cffff);
+            transform:translate(-50%,-50%);
+            animation:sciRingSpin 5s linear infinite,sciRingPulse 2s ease-in-out infinite;
+            pointer-events:none;z-index:5;
+        }
+        .sci-ring-core{
+            position:absolute;left:50%;top:45%;
+            width:22%;height:22%;
+            border-radius:50%;
+            transform:translate(-50%,-50%);
+            background:radial-gradient(circle,#00f7ff 0%,rgba(0,210,255,.55) 40%,rgba(0,150,255,.08) 75%,transparent 92%);
+            -webkit-filter:drop-shadow(0 0 14px rgba(0,240,255,.9));
+                    filter:drop-shadow(0 0 14px rgba(0,240,255,.9));
+            animation:sciRingPulse 2s ease-in-out infinite;
+            pointer-events:none;z-index:4;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 </head>
@@ -568,8 +602,8 @@ async function loadDashboard(){
     if(barChart){
         barChart.setOption({
             tooltip:{trigger:'axis',backgroundColor:'#04142a',borderColor:'#0a6fb0',textStyle:{color:'#eaf6ff'}},
-            grid:{left:36,right:12,top:20,bottom:28},
-            xAxis:{type:'category',data:data.monthly_labels||[],axisLine:{lineStyle:{color:'#0a6fb0'}},axisLabel:{color:'#6ea5d6'}},
+            grid:{left:36,right:12,top:16,bottom:30,containLabel:true},
+            xAxis:{type:'category',boundaryGap:true,data:data.monthly_labels||[],axisLine:{show:true,lineStyle:{color:'#0a6fb0'}},axisTick:{show:true,alignWithLabel:true,lineStyle:{color:'#0a6fb0'}},axisLabel:{show:true,color:'#6ea5d6',fontSize:11,interval:0,rotate:0}},
             yAxis:{type:'value',axisLine:{show:false},axisLabel:{color:'#6ea5d6'},splitLine:{lineStyle:{color:'rgba(10,111,176,.18)'}}},
             series:[{name:'访问量',type:'bar',data:data.monthly_visits||[],barWidth:'42%',
                 itemStyle:{borderRadius:[3,3,0,0],color:new echarts.graphic.LinearGradient(0,0,0,1,[
@@ -589,8 +623,8 @@ async function loadDashboard(){
         lineChart.setOption({
             tooltip:{trigger:'axis',backgroundColor:'#04142a',borderColor:'#0a6fb0',textStyle:{color:'#eaf6ff'}},
             legend:{data:['访问量','问答量'],textStyle:{color:'#6ea5d6'},top:0},
-            grid:{left:36,right:12,top:44,bottom:24},
-            xAxis:{type:'category',data:data.monthly_labels||[],axisLine:{lineStyle:{color:'#0a6fb0'}},axisLabel:{color:'#6ea5d6'}},
+            grid:{left:36,right:12,top:44,bottom:26,containLabel:true},
+            xAxis:{type:'category',boundaryGap:true,data:data.monthly_labels||[],axisLine:{show:true,lineStyle:{color:'#0a6fb0'}},axisTick:{show:true,alignWithLabel:true,lineStyle:{color:'#0a6fb0'}},axisLabel:{show:true,color:'#6ea5d6',fontSize:11,interval:0}},
             yAxis:{type:'value',axisLine:{show:false},axisLabel:{color:'#6ea5d6'},splitLine:{lineStyle:{color:'rgba(10,111,176,.18)'}}},
             series:[
                 {name:'访问量',type:'line',data:data.monthly_visits||[],smooth:true,symbol:'circle',symbolSize:5,
@@ -623,26 +657,50 @@ async function loadDashboard(){
                 ]
             }]
         });
+        var pieDom=document.getElementById('sentimentPieChart');
+        if(pieDom){
+            if(getComputedStyle(pieDom).position==='static') pieDom.style.position='relative';
+            var old1=pieDom.querySelector('.sci-ring');  if(old1) old1.remove();
+            var old2=pieDom.querySelector('.sci-ring-core'); if(old2) old2.remove();
+            var ring=document.createElement('div');   ring.className='sci-ring';   pieDom.appendChild(ring);
+            var core=document.createElement('div');  core.className='sci-ring-core'; pieDom.appendChild(core);
+        }
     }
 
-    // 情感趋势
+    // 情感趋势（近7天）
     if(!sentimentLineChart && document.getElementById('sentimentLineChart'))
         sentimentLineChart=echarts.init(document.getElementById('sentimentLineChart'));
     var dailyArr=sent.daily||[];
     if(sentimentLineChart){
         sentimentLineChart.setOption({
-            tooltip:{trigger:'axis',backgroundColor:'#04142a',borderColor:'#0a6fb0',textStyle:{color:'#eaf6ff'}},
+            tooltip:{trigger:'axis',backgroundColor:'#04142a',borderColor:'#0a6fb0',textStyle:{color:'#eaf6ff'},
+                formatter:function(ps){
+                    var d=dailyArr[ps[0].dataIndex];
+                    var head='<div style="font-weight:600;margin-bottom:4px">'+d.date+'</div>';
+                    var order=['正面','中性','负面'];
+                    var cols={'正面':'#6effa0','中性':'#ffb86b','负面':'#ff8585'};
+                    var raw={'正面':d.good||0,'中性':d.neutral||0,'负面':d.bad||0};
+                    var body=order.map(function(name){
+                        var col=cols[name],v=raw[name];
+                        return '<div style="display:flex;justify-content:space-between;gap:14px"><span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+col+';margin-right:6px;box-shadow:0 0 6px '+col+'"></span>'+name+'</span><span style="font-weight:700;color:'+col+'">'+v+'</span></div>';
+                    }).join('');
+                    return head+body;
+                }
+            },
             legend:{data:['正面','中性','负面'],textStyle:{color:'#6ea5d6'},top:0},
-            grid:{left:32,right:8,top:40,bottom:18},
-            xAxis:{type:'category',data:dailyArr.map(x=>x.date),axisLine:{lineStyle:{color:'#0a6fb0'}},axisLabel:{color:'#6ea5d6',fontSize:10}},
-            yAxis:{type:'value',axisLine:{show:false},axisLabel:{color:'#6ea5d6',fontSize:10},splitLine:{lineStyle:{color:'rgba(10,111,176,.18)'}}},
+            grid:{left:34,right:14,top:42,bottom:24},
+            xAxis:{type:'category',data:dailyArr.map(function(x){return x.date}),boundaryGap:false,axisLine:{lineStyle:{color:'#0a6fb0'}},axisLabel:{color:'#6ea5d6',fontSize:10}},
+            yAxis:{type:'value',minInterval:1,axisLine:{show:false},axisLabel:{color:'#6ea5d6',fontSize:10},splitLine:{lineStyle:{color:'rgba(10,111,176,.18)'}}},
             series:[
-                {name:'正面',type:'line',stack:'total',data:dailyArr.map(x=>x.good||0),smooth:true,symbol:'circle',symbolSize:4,
-                    lineStyle:{color:'#6effa0'},itemStyle:{color:'#6effa0'},areaStyle:{color:'rgba(110,255,160,.22)'}},
-                {name:'中性',type:'line',stack:'total',data:dailyArr.map(x=>x.neutral||0),smooth:true,symbol:'circle',symbolSize:4,
-                    lineStyle:{color:'#ffb86b'},itemStyle:{color:'#ffb86b'},areaStyle:{color:'rgba(255,184,107,.18)'}},
-                {name:'负面',type:'line',stack:'total',data:dailyArr.map(x=>x.bad||0),smooth:true,symbol:'circle',symbolSize:4,
-                    lineStyle:{color:'#ff8585'},itemStyle:{color:'#ff8585'},areaStyle:{color:'rgba(255,133,133,.18)'}}
+                {name:'正面',type:'line',smooth:true,connectNulls:true,symbol:'circle',symbolSize:5,showSymbol:true,
+                    data:dailyArr.map(function(x){var v=x.good||0;return v>0?v:null}),
+                    lineStyle:{color:'#6effa0',width:2},itemStyle:{color:'#6effa0'},areaStyle:{color:'rgba(110,255,160,.15)'}},
+                {name:'中性',type:'line',smooth:true,connectNulls:true,symbol:'circle',symbolSize:5,showSymbol:true,
+                    data:dailyArr.map(function(x){var v=x.neutral||0;return v>0?v:null}),
+                    lineStyle:{color:'#ffb86b',width:2},itemStyle:{color:'#ffb86b'},areaStyle:{color:'rgba(255,184,107,.12)'}},
+                {name:'负面',type:'line',smooth:true,connectNulls:true,symbol:'circle',symbolSize:5,showSymbol:true,
+                    data:dailyArr.map(function(x){var v=x.bad||0;return v>0?v:null}),
+                    lineStyle:{color:'#ff8585',width:2},itemStyle:{color:'#ff8585'},areaStyle:{color:'rgba(255,133,133,.12)'}}
             ]
         });
     }

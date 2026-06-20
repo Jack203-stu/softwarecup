@@ -3,25 +3,20 @@ import re
 
 def clean_text_for_tts(text):
     """移除文本中的emoji和特殊图标，防止TTS读出乱码"""
-    emoji_pattern = re.compile("["
-        u"\U0001F600-\U0001F64F"  # emoticons
-        u"\U0001F300-\U0001F5FF"  # symbols & pictographs
-        u"\U0001F680-\U0001F6FF"  # transport & map symbols
-        u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
-        u"\U00002702-\U000027B0"
-        u"\U000024C2-\U0001F251"
-        u"\U0001f926-\U0001f937"
-        u"\U00010000-\U0010ffff"
-        u"\u2640-\u2642"
-        u"\u2600-\u2B55"
-        u"\u200d"
-        u"\u23cf"
-        u"\u23e9"
-        u"\u231a"
-        u"\ufe0f"
-        u"\u3030"
-        "]+", flags=re.UNICODE)
-    return emoji_pattern.sub(r'', text).strip()
+    import unicodedata
+    out = []
+    for ch in text:
+        cp = ord(ch)
+        cat = unicodedata.category(ch)
+        if cat == 'So':
+            continue
+        if cat == 'Sk':
+            continue
+        if cat == 'Cf' and cp >= 0xFE00:
+            continue
+        out.append(ch)
+    stripped = ''.join(out).strip()
+    return re.sub(r'[#*`~\-]+', '', stripped)
 
 from datetime import date, timedelta
 import io, csv
@@ -50,20 +45,7 @@ logger = InteractionLogger()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def remove_emoji(text):
-    emoji_pattern = re.compile(
-        "[\\U0001F600-\\U0001F64F]"
-        "[\\U0001F300-\\U0001F5FF]"
-        "[\\U0001F680-\\U0001F6FF]"
-        "[\\U0001F1E0-\\U0001F1FF]"
-        "[\\U00002702-\\U000027B0]"
-        "[\\U000024C2-\\U0001F251]"
-        "[\\U0001F900-\\U0001F9FF]"
-        "[\\U0001FA00-\\U0001FA6F]"
-        "[\\U0001FA70-\\U0001FAFF]"
-        "[\\U00002600-\\U000026FF]"
-        "[\\U0000FE00-\\U0000FE0F]"
-        "+", flags=re.UNICODE)
-    return emoji_pattern.sub(r'', text)
+    return clean_text_for_tts(text)
 
 # 预设回答（无需调用大模型）
 PRESET_REPLIES = {
@@ -291,9 +273,6 @@ import json
 AVATAR_DIR = os.path.join(BASE_DIR, "static", "avatars")
 os.makedirs(AVATAR_DIR, exist_ok=True)
 
-BG_DIR = os.path.join(BASE_DIR, "static", "backgrounds")
-os.makedirs(BG_DIR, exist_ok=True)
-
 @app.post("/api/admin/upload-avatar")
 async def upload_avatar(file: UploadFile = File(...)):
     if file.content_type not in ("image/png", "image/jpeg", "image/gif"):
@@ -303,29 +282,6 @@ async def upload_avatar(file: UploadFile = File(...)):
     with open(filepath, "wb") as f:
         f.write(await file.read())
     return {"url": f"/static/avatars/{filename}", "name": file.filename}
-
-@app.post("/api/admin/upload-background")
-async def upload_background(file: UploadFile = File(...)):
-    if file.content_type not in ("image/png", "image/jpeg", "image/gif"):
-        return {"error": "仅支持 PNG/JPG/GIF 图片"}
-    filename = f"{uuid.uuid4().hex}_{file.filename}"
-    filepath = os.path.join(BG_DIR, filename)
-    with open(filepath, "wb") as f:
-        f.write(await file.read())
-    return {"url": f"/static/backgrounds/{filename}", "name": file.filename}
-
-@app.get("/api/admin/backgrounds")
-async def list_backgrounds():
-    files = os.listdir(BG_DIR) if os.path.exists(BG_DIR) else []
-    return [{"name": f, "url": f"/static/backgrounds/{f}"} for f in files if not f.startswith('.') and f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))]
-
-@app.delete("/api/admin/delete-background/{filename}")
-async def delete_background(filename: str):
-    filepath = os.path.join(BG_DIR, filename)
-    if os.path.exists(filepath):
-        os.remove(filepath)
-        return {"status": "ok"}
-    return {"error": "文件不存在"}
 
 @app.get("/api/admin/avatars")
 async def list_avatars():
