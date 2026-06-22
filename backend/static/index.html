@@ -195,13 +195,15 @@ html,body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;height:100%;ove
 .pane-side .func-row .rt .rt-label{font-size:10px;color:#bcd4ef;letter-spacing:1px;text-align:center}
 .pane-side .func-row .rt:hover{background:rgba(0,180,255,.12);border-color:rgba(0,234,255,.45);transform:translateY(-1px);box-shadow:0 0 18px rgba(0,180,255,.22);color:#00eaff}
 
-.pane-side .fb-row{display:flex;gap:6px;margin-top:6px}
-.pane-side .fb-row .fb-btn{flex:1;padding:7px 2px;border-radius:6px;border:1px solid transparent;cursor:pointer;font-size:11px;letter-spacing:1px;transition:.2s;background:rgba(0,60,120,.14)}
-.pane-side .fb-row .fb-btn[data-rating="good"]{color:#6effa0;border-color:rgba(110,255,160,.28);background:rgba(110,255,160,.06)}
-.pane-side .fb-row .fb-btn[data-rating="neutral"]{color:#ffb86b;border-color:rgba(255,184,107,.28);background:rgba(255,184,107,.06)}
-.pane-side .fb-row .fb-btn[data-rating="bad"]{color:#ff8585;border-color:rgba(255,133,133,.28);background:rgba(255,133,133,.06)}
-.pane-side .fb-row .fb-btn:hover{transform:translateY(-1px);box-shadow:0 0 16px rgba(0,180,255,.2)}
-.pane-side .fb-thanks{flex:1;text-align:center;color:#6effa0;font-size:11px;letter-spacing:2px}
+.pane-side .fb-row{display:flex;align-items:center;gap:8px;margin-top:6px}
+.pane-side .fb-row .fb-stars{display:flex;gap:3px;flex:1;justify-content:center}
+.pane-side .fb-row .fb-star{font-size:18px;cursor:pointer;transition:transform .15s, color .15s, text-shadow .15s;line-height:1}
+.pane-side .fb-row .fb-star.off{color:rgba(255,255,255,.25);text-shadow:none}
+.pane-side .fb-row .fb-star.half{color:rgba(255,220,120,.55);text-shadow:0 0 6px rgba(255,196,80,.25)}
+.pane-side .fb-row .fb-star.on{color:#ffd45f;text-shadow:0 0 8px rgba(255,196,80,.8),0 0 16px rgba(255,196,80,.45)}
+.pane-side .fb-row .fb-star:hover{transform:scale(1.25)}
+.pane-side .fb-row .fb-thanks{flex:1;text-align:center;color:#6effa0;font-size:11px;letter-spacing:2px}
+.pane-side .fb-row .fb-label{font-size:10px;color:rgba(155,190,230,.7);letter-spacing:1px;min-width:36px;text-align:center}
 
 .ribbon{position:absolute;left:10px;right:10px;bottom:10px;width:auto;z-index:50;pointer-events:none}
 .ribbon .ribbon-glass{position:relative;pointer-events:auto;display:flex;align-items:center;gap:12px;padding:11px 14px 11px 64px;border-radius:14px;
@@ -342,9 +344,15 @@ html,body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;height:100%;ove
             <div class="sc-title">服务评价</div>
             <div style="font-size:11px;color:#6ea5d6;letter-spacing:1px">今天的小灵表现如何？</div>
             <div class="fb-row" id="feedbackRow" style="margin-top:8px">
-                <button class="fb-btn" data-rating="good" onclick="sendFeedback('good', this)">😊 满意</button>
-                <button class="fb-btn" data-rating="neutral" onclick="sendFeedback('neutral', this)">😐 一般</button>
-                <button class="fb-btn" data-rating="bad" onclick="sendFeedback('bad', this)">😞 不满意</button>
+                <span class="fb-label">差</span>
+                <div class="fb-stars" id="fbStars">
+                    <span class="fb-star off" data-v="1">★</span>
+                    <span class="fb-star off" data-v="2">★</span>
+                    <span class="fb-star off" data-v="3">★</span>
+                    <span class="fb-star off" data-v="4">★</span>
+                    <span class="fb-star off" data-v="5">★</span>
+                </div>
+                <span class="fb-label">好</span>
             </div>
         </div>
     </div>
@@ -360,6 +368,11 @@ var audioChunks = [];
 var currentAudio = null;
 var isLive2DActive = false;
 var pendingVisionFile = null;
+var vadAnaNode = null;
+var vadStreamSrc = null;
+var vadSilenceStart = null;
+var vadCheckTimer = null;
+var recordingStartedAt = 0;
 
 (function(){
   var c=document.getElementById('bgStars');if(!c)return;
@@ -375,23 +388,78 @@ function showToast(msg){
   setTimeout(function(){t.classList.remove('show')},2500);
 }
 
+function _highlightStars(n){
+  var stars=document.querySelectorAll('#fbStars .fb-star');
+  for(var i=0;i<stars.length;i++){
+    var v=parseInt(stars[i].dataset.v,10);
+    stars[i].classList.remove('off','half','on');
+    if(v<=n)stars[i].classList.add('on');
+    else if(v-n===0.5)stars[i].classList.add('half');
+    else stars[i].classList.add('off');
+  }
+}
+(function initStars(){
+  var stars=document.querySelectorAll('#fbStars .fb-star');
+  var saved=localStorage.getItem('fbStarsSent');
+  if(saved){
+    _highlightStars(parseInt(saved,10));
+  }
+  stars.forEach(function(s){
+    s.addEventListener('mouseenter',function(){
+      var row=document.getElementById('feedbackRow');
+      if(row&&row.dataset.sent==='1')return;
+      _highlightStars(parseInt(s.dataset.v,10));
+    });
+    s.addEventListener('mouseleave',function(){
+      var row=document.getElementById('feedbackRow');
+      var cur=row&&row.dataset.rating?parseInt(row.dataset.rating,10):0;
+      _highlightStars(cur);
+    });
+    s.addEventListener('click',async function(){
+      var row=document.getElementById('feedbackRow');
+      if(!row||row.dataset.sent==='1')return;
+      var n=parseInt(this.dataset.v,10);
+      row.dataset.rating=String(n);
+      _highlightStars(n);
+      try{
+        var res=await fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rating:n})});
+        var ok=res&&res.ok;
+        if(ok){
+          row.dataset.sent='1';
+          localStorage.setItem('fbStarsSent',String(n));
+          var labels={1:'很差',2:'较差',3:'一般',4:'满意',5:'非常满意'};
+          row.innerHTML='<div class="fb-thanks">感谢反馈 · '+labels[n]+' ✦</div>';
+        }else{
+          showToast('反馈失败，请检查网络');
+        }
+      }catch(e){showToast('反馈失败，请检查网络');}
+    });
+  });
+})();
+
 async function sendFeedback(rating, btn){
   var row=document.getElementById('feedbackRow');
   if(!row||row.dataset.sent==='1')return;
-  if(btn){btn.disabled=true;btn.style.opacity='.55';}
-  var ok=false;
+  if(typeof rating==='undefined'){
+    var sel=row.querySelector('.fb-star.hover-on');
+    rating=sel?sel.dataset.v:null;
+  }
+  if(rating===null)return;
+  row.dataset.rating=String(rating);
+  _highlightStars(parseInt(rating,10));
   try{
     var res=await fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rating:rating})});
-    ok=res&&res.ok;
-  }catch(e){ok=false;}
-  if(ok){
-    row.dataset.sent='1';
-    row.innerHTML='<div class="fb-thanks">感谢反馈 ✦</div>';
-    showToast('反馈已记录 ✓');
-  }else{
-    if(btn){btn.disabled=false;btn.style.opacity='1';}
-    showToast('反馈失败，请检查网络');
-  }
+    var ok=res&&res.ok;
+    if(ok){
+      row.dataset.sent='1';
+      localStorage.setItem('fbStarsSent',String(rating));
+      var labels={1:'很差',2:'较差',3:'一般',4:'满意',5:'非常满意'};
+      row.innerHTML='<div class="fb-thanks">感谢反馈 · '+labels[rating]+' ✦</div>';
+      showToast('反馈已记录 ✓');
+    }else{
+      showToast('反馈失败，请检查网络');
+    }
+  }catch(e){showToast('反馈失败，请检查网络');}
 }
 
 async function loadModelsConfig(){
@@ -598,35 +666,143 @@ function getEmotionTag(emotion){
 async function toggleVoice(){
   var btn=document.getElementById('btnVoice');
   if(isRecording){
-    isRecording=false;
-    btn.classList.remove('recording');
-    if(mediaRecorder&&mediaRecorder.state==='recording')mediaRecorder.stop();
+    _stopRecording();
     return;
   }
   try{
-    var stream=await navigator.mediaDevices.getUserMedia({audio:true});
-    mediaRecorder=new MediaRecorder(stream);
+    var stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    mediaRecorder=new MediaRecorder(stream,{mimeType:'audio/webm;codecs=opus'});
     audioChunks=[];
     mediaRecorder.ondataavailable=function(e){if(e.data.size>0)audioChunks.push(e.data);};
     mediaRecorder.onstop=async function(){
+      _stopVAD();
       stream.getTracks().forEach(function(t){t.stop();});
       var blob=new Blob(audioChunks,{type:'audio/webm'});
       await sendVoiceMessage(blob);
     };
     mediaRecorder.start();
     isRecording=true;
+    recordingStartedAt=Date.now();
+    vadSilenceStart=null;
+    _startVAD(stream);
     btn.classList.add('recording');
-    showToast('正在录音 · 点击结束');
+    showToast('正在录音 · 静音1.5s自动发送');
   }catch(e){
     showToast('无法访问麦克风');
   }
 }
 
-async function sendVoiceMessage(blob){
-  var fd=new FormData();
-  fd.append('file', blob, 'recording.webm');
+function _startVAD(stream){
   try{
-    var res=await fetch('/api/chat/voice', { method:'POST', body:fd });
+    var ac=new(window.AudioContext||window.webkitAudioContext)();
+    vadStreamSrc=ac.createMediaStreamSource(stream);
+    vadAnaNode=ac.createAnalyser();
+    vadAnaNode.fftSize=256;
+    vadStreamSrc.connect(vadAnaNode);
+    var data=new Uint8Array(vadAnaNode.frequencyBinCount);
+    var minDur=1200;
+    var silenceDur=1500;
+    var autoStopMax=25000;
+    vadCheckTimer=setInterval(function(){
+      if(!vadAnaNode)return;
+      vadAnaNode.getByteFrequencyData(data);
+      var sum=0;for(var i=0;i<data.length;i++)sum+=data[i];
+      var avg=sum/data.length;
+      var now=Date.now();
+      if(avg<8){
+        if(!vadSilenceStart){vadSilenceStart=now;}
+        if(now-recordingStartedAt>minDur && now-vadSilenceStart>silenceDur && mediaRecorder&&mediaRecorder.state==='recording'){
+          _stopRecording();
+        }
+      }else{
+        vadSilenceStart=null;
+      }
+      if(now-recordingStartedAt>autoStopMax && mediaRecorder&&mediaRecorder.state==='recording'){
+        _stopRecording();
+      }
+    }, 150);
+  }catch(e){}
+}
+
+function _stopVAD(){
+  if(vadCheckTimer){clearInterval(vadCheckTimer);vadCheckTimer=null;}
+  if(vadStreamSrc){try{vadStreamSrc.disconnect();}catch(e){}vadStreamSrc=null;}
+  if(vadAnaNode){vadAnaNode=null;}
+  vadSilenceStart=null;
+}
+
+function _stopRecording(){
+  isRecording=false;
+  var btn=document.getElementById('btnVoice');
+  if(btn)btn.classList.remove('recording');
+  if(mediaRecorder&&mediaRecorder.state==='recording')mediaRecorder.stop();
+}
+
+async function blobTo16kWav(blob){
+  var ctx=new(window.AudioContext||window.webkitAudioContext)();
+  var ab=await blob.arrayBuffer();
+  var decoded=await ctx.decodeAudioData(ab);
+  var srcSR=decoded.sampleRate;
+  var srcLen=decoded.length;
+  var dstSR=16000;
+  var ratio=srcSR/dstSR;
+  var dstLen=Math.round(srcLen/ratio);
+  var numCh=decoded.numberOfChannels;
+  var buffers=[];
+  for(var c=0;c<numCh;c++)buffers.push(decoded.getChannelData(c));
+  var mono=buffers[0];
+  if(numCh>1){
+    var mono2=new Float32Array(srcLen);
+    for(var i=0;i<srcLen;i++){
+      var s=0;for(var c=0;c<numCh;c++)s+=buffers[c][i];
+      mono2[i]=s/numCh;
+    }
+    mono=mono2;
+  }
+  var dst=new Float32Array(dstLen);
+  for(var j=0;j<dstLen;j++){
+    var idx=Math.floor(j*ratio);
+    if(idx<srcLen)dst[j]=mono[idx];else dst[j]=0;
+  }
+  var intBuf=new Int16Array(dstLen);
+  for(var k=0;k<dstLen;k++){
+    var s=Math.max(-1,Math.min(1,dst[k]));
+    intBuf[k]=s<0?s*0x8000:s*0x7FFF;
+  }
+  function str2buf(s){var ab=new ArrayBuffer(s.length);var v=new Uint8Array(ab);for(var i=0;i<s.length;i++)v[i]=s.charCodeAt(i)&0xff;return ab;}
+  function hdr(sr,len){
+    var byteRate=sr*2*1;
+    var blockAlign=2*1;
+    var dataSize=len*2;
+    return "RIFFWAVE"+String.fromCharCode((dataSize+36)&0xff,(dataSize+36)>>8,0,0)+
+          "fmt "+String.fromCharCode(16,0,0,0)+
+          String.fromCharCode(1,0,1,0)+
+          String.fromCharCode(sr&0xff,sr>>8,0,0)+
+          String.fromCharCode(byteRate&0xff,byteRate>>8,(byteRate>>16)&0xff,(byteRate>>24)&0xff)+
+          String.fromCharCode(blockAlign&0xff,(blockAlign>>8)&0xff,16,0)+
+          "data"+String.fromCharCode(dataSize&0xff,(dataSize>>8)&0xff,(dataSize>>16)&0xff,(dataSize>>24)&0xff);
+  }
+  var wav=new Blob([str2buf("RIFF"),str2buf(String.fromCharCode((dataSize+36)&0xff,(dataSize+36)>>8,0,0)),"WAVE",str2buf("fmt "),
+    str2buf(String.fromCharCode(16,0,0,0)+String.fromCharCode(1,0,1,0)+String.fromCharCode(dstSR&0xff,dstSR>>8,0,0)+
+      String.fromCharCode(byteRate&0xff,byteRate>>8,(byteRate>>16)&0xff,(byteRate>>24)&0xff)+
+      String.fromCharCode(blockAlign&0xff,(blockAlign>>8)&0xff,16,0)),
+    str2buf("data"),str2buf(String.fromCharCode(dataSize&0xff,(dataSize>>8)&0xff,(dataSize>>16)&0xff,(dataSize>>24)&0xff)),
+    intBuf.buffer],{type:'audio/wav'});
+  return wav;
+}
+
+async function sendVoiceMessage(blob){
+  var wavBlob=blob;
+  try{
+    wavBlob=await blobTo16kWav(blob);
+  }catch(e){
+    console.warn('[voice] 前端重采样失败，退回上传原始格式：',e);
+  }
+  var fd=new FormData();
+  fd.append('file', wavBlob, 'recording.wav');
+  var path=wavBlob===blob?'/api/chat/voice':'/api/chat/voice16';
+  try{
+    var res=await fetch(path, { method:'POST', body:fd });
     var data=await res.json();
     var userText = data.user_text || '';
     var replyText = data.reply_text || '';

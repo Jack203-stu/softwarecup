@@ -116,8 +116,9 @@ body{background:
         .bar .label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:9px;color:#4f7aa4}
 
         /* 非驾驶舱页面 */
-        .page{display:none}.page.active{display:block}
-        .alt-page{position:relative;z-index:1;padding:24px 30px;max-width:1400px;margin:0 auto}
+        .page{display:none}
+        .page.active{display:block}
+        .alt-page{position:relative;z-index:1;padding:24px 30px;max-width:1400px;margin:0 auto;min-height:calc(100vh - 60px)}
         .alt-page .page-title{font-size:20px;color:#eaf6ff;letter-spacing:3px;margin-bottom:18px;border-left:3px solid #00eaff;padding-left:10px}
         .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
         button.btn{background:rgba(0,60,130,.4);color:#9cd3ff;border:1px solid rgba(0,160,240,.4);padding:6px 14px;border-radius:4px;cursor:pointer;font-size:12px;letter-spacing:1px;transition:.2s}
@@ -185,12 +186,12 @@ body{background:
     <div class="header-right">
         <span class="time" id="headerTime">--:--:--</span>
         <div class="nav-pills">
-            <span class="pill active" onclick="showPage('dashboard')">驾驶舱</span>
-            <span class="pill" onclick="showPage('history')">交互历史</span>
-            <span class="pill" onclick="showPage('feedbacks')">用户反馈</span>
-            <span class="pill" onclick="showPage('knowledge')">知识库</span>
-            <span class="pill" onclick="showPage('models')">模型管理</span>
-            <span class="pill" onclick="window.open('/')">游客端</span>
+            <span class="pill active" data-target="dashboard">驾驶舱</span>
+            <span class="pill" data-target="history">交互历史</span>
+            <span class="pill" data-target="feedbacks">用户反馈</span>
+            <span class="pill" data-target="knowledge">知识库</span>
+            <span class="pill" data-target="models">模型管理</span>
+            <span class="pill" data-target="window.open">游客端</span>
         </div>
     </div>
 </div>
@@ -204,7 +205,7 @@ body{background:
             <div class="kpi-grid">
                 <div class="kpi-card glow"><div class="kpi-label">今日服务</div><div class="kpi-value" id="todayVisitors">-<span class="kpi-unit">人</span></div></div>
                 <div class="kpi-card glow"><div class="kpi-label">本周问答</div><div class="kpi-value" id="weekVisitors">-<span class="kpi-unit">次</span></div></div>
-                <div class="kpi-card glow good"><div class="kpi-label">满意度</div><div class="kpi-value" id="satisfaction">-%<span class="kpi-unit"></span></div></div>
+                <div class="kpi-card glow good"><div class="kpi-label">满意度</div><div class="kpi-value" id="satisfaction">-%<span class="kpi-unit"></span></div><div class="kpi-label" style="font-size:10px;color:#6ea5d6;margin-top:4px" id="avgStarsLabel">-</div></div>
                 <div class="kpi-card glow warn"><div class="kpi-label">平均响应</div><div class="kpi-value" id="avgResponse">-<span class="kpi-unit">s</span></div></div>
                 <div class="kpi-card"><div class="kpi-label">累计用户</div><div class="kpi-value" id="sumTotalUsers">-</div></div>
                 <div class="kpi-card"><div class="kpi-label">累计访问</div><div class="kpi-value" id="sumTotalVisits">-</div></div>
@@ -258,10 +259,7 @@ body{background:
     </div>
 </div>
 
-<!-- ============ 非驾驶舱页面 ============ -->
-<div class="alt-page page" id="page-dashboard-other" style="display:none">
-    <div class="page-title">运营驾驶舱</div>
-</div>
+<!-- ============ 其他页面 ============ -->
 
 <div class="alt-page page" id="page-history">
     <div class="page-title">交互历史</div>
@@ -270,23 +268,47 @@ body{background:
 
 <div class="alt-page page" id="page-feedbacks">
     <div class="page-title">用户反馈</div>
-    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
-        <div class="cp-panel"><div style="font-size:12px;color:#6ea5d6">满意</div><div style="font-size:28px;color:#6effa0;font-family:Consolas,monospace;margin-top:6px" id="goodCount">0</div></div>
-        <div class="cp-panel"><div style="font-size:12px;color:#6ea5d6">一般</div><div style="font-size:28px;color:#ffb86b;font-family:Consolas,monospace;margin-top:6px" id="neutralCount">0</div></div>
-        <div class="cp-panel"><div style="font-size:12px;color:#6ea5d6">不满意</div><div style="font-size:28px;color:#ff8585;font-family:Consolas,monospace;margin-top:6px" id="badCount">0</div></div>
+    <div class="stats-grid" style="grid-template-columns:repeat(5,1fr)">
+        <div class="cp-panel"><div style="font-size:12px;color:#6ea5d6">★</div><div style="font-size:28px;color:#ff8585;font-family:Consolas,monospace;margin-top:6px" id="star1">0</div><div style="font-size:10px;color:rgba(255,255,255,.35);letter-spacing:1px;margin-top:2px">很差</div></div>
+        <div class="cp-panel"><div style="font-size:12px;color:#6ea5d6">★★</div><div style="font-size:28px;color:#ff9a7b;font-family:Consolas,monospace;margin-top:6px" id="star2">0</div><div style="font-size:10px;color:rgba(255,255,255,.35);letter-spacing:1px;margin-top:2px">较差</div></div>
+        <div class="cp-panel"><div style="font-size:12px;color:#6ea5d6">★★★</div><div style="font-size:28px;color:#ffb86b;font-family:Consolas,monospace;margin-top:6px" id="star3">0</div><div style="font-size:10px;color:rgba(255,255,255,.35);letter-spacing:1px;margin-top:2px">一般</div></div>
+        <div class="cp-panel"><div style="font-size:12px;color:#6ea5d6">★★★★</div><div style="font-size:28px;color:#c9ff78;font-family:Consolas,monospace;margin-top:6px" id="star4">0</div><div style="font-size:10px;color:rgba(255,255,255,.35);letter-spacing:1px;margin-top:2px">满意</div></div>
+        <div class="cp-panel"><div style="font-size:12px;color:#6ea5d6">★★★★★</div><div style="font-size:28px;color:#6effa0;font-family:Consolas,monospace;margin-top:6px" id="star5">0</div><div style="font-size:10px;color:rgba(255,255,255,.35);letter-spacing:1px;margin-top:2px">非常满意</div></div>
     </div>
     <div class="cp-panel" style="padding:0"><div id="feedbackList" style="max-height:400px;overflow-y:auto;padding:14px"></div></div>
 </div>
 
 <div class="alt-page page" id="page-knowledge">
     <div class="page-title">知识库文档管理</div>
-    <div style="margin-bottom:16px">
-        <input type="file" id="docFile" accept=".txt,.docx,.pdf">
-        <button class="btn" onclick="uploadDocument()">上传新文档</button>
-        <button class="btn" onclick="rebuildIndex()" style="margin-left:8px">重建索引</button>
-        <span id="uploadStatus" style="color:#6effa0;margin-left:10px;font-size:12px"></span>
+
+    <div class="cp-panel" style="margin-bottom:18px;text-align:center;padding:28px;cursor:pointer;border:1px dashed rgba(0,160,240,.5);border-radius:6px" id="docDropZone">
+        <div style="font-size:36px">📚</div>
+        <div style="color:#6ea5d6;margin-top:8px;font-size:14px">拖拽文档到此区域 / 点击选择文件</div>
+        <div style="color:#7fa9d4;font-size:11px;margin-top:6px">支持 txt · md · pdf · docx · doc · xlsx · xls   （可一次选中多个）</div>
+        <input type="file" id="docFile" accept=".txt,.md,.pdf,.docx,.doc,.xlsx,.xls" multiple style="display:none">
     </div>
-    <div class="cp-panel"><div class="cp-title">现有文档</div><div id="docList"></div></div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <button class="btn" onclick="rebuildIndex()" style="background:rgba(0,90,160,.3)">重新读入数据库</button>
+        <span id="uploadStatus" style="color:#bcd4ef;font-size:12px;flex:1"></span>
+    </div>
+
+    <div id="uploadProgress" style="display:none;margin-bottom:14px">
+        <div style="background:rgba(0,20,40,.7);border:1px solid rgba(0,160,240,.25);border-radius:4px;padding:10px 12px">
+            <div style="display:flex;justify-content:space-between;color:#bcd4ef;font-size:12px;margin-bottom:6px">
+                <span id="progLabel">上传中...</span>
+                <span id="progPct">0%</span>
+            </div>
+            <div style="background:rgba(0,10,25,.9);height:8px;border-radius:4px;overflow:hidden">
+                <div id="progBar" style="height:100%;width:0;background:linear-gradient(90deg,#00b4ff,#00eaff);transition:width .2s"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="cp-panel">
+        <div class="cp-title">知识库文档清单</div>
+        <div id="docList"><div style="color:#7fa9d4;font-size:12px">正在加载...</div></div>
+    </div>
 </div>
 
 <div class="alt-page page" id="page-models">
@@ -551,26 +573,37 @@ function tickClock(){
 setInterval(tickClock,1000);tickClock();
 
 // ===== 页面切换 =====
-function showPage(name){
+function showPage(name, pillEl){
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.querySelectorAll('.nav-pills .pill').forEach(n=>n.classList.remove('active'));
-    if(event && event.target) event.target.classList.add('active');
+    if(pillEl) pillEl.classList.add('active');
     var cockpit=document.getElementById('cockpitMain');
     var pages=document.querySelectorAll('.alt-page');
     if(name==='dashboard'){
         cockpit.style.display='grid';
-        pages.forEach(p=>p.style.display='none');
+        pages.forEach(function(p){ p.style.display='none'; });
         loadDashboard();
     }else{
         cockpit.style.display='none';
+        pages.forEach(function(p){ p.style.display='none'; });
         var pg=document.getElementById('page-'+name);
-        if(pg){pg.style.display='block';pg.classList.add('active')}
+        if(pg){ pg.style.display='block'; pg.classList.add('active'); }
         if(name==='history') loadHistory();
         if(name==='feedbacks') loadFeedbacks();
         if(name==='knowledge') loadDocuments();
         if(name==='models') loadModels();
     }
 }
+// 绑定 pill 点击时把自身传进去
+document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('.nav-pills .pill[data-target]').forEach(function(p){
+        p.addEventListener('click', function(){
+            var t=this.getAttribute('data-target');
+            if(t==='window.open'){ window.open('/'); return; }
+            showPage(t, this);
+        });
+    });
+});
 
 // ===== 数据大屏 =====
 let barChart=null,lineChart=null,sentimentPieChart=null,sentimentLineChart=null,dailyBarChart=null;
@@ -583,6 +616,16 @@ async function loadDashboard(){
     document.getElementById('todayVisitors').textContent=data.today_visitors||0;
     document.getElementById('weekVisitors').textContent=data.week_visitors||0;
     document.getElementById('satisfaction').textContent=data.satisfaction_rate!=null?data.satisfaction_rate+'%':'-';
+    var avgStars=data.avg_stars;
+    var totalFb=data.total_feedbacks||0;
+    var label='共 '+totalFb+'  条';
+    if(avgStars!=null){
+      var starsText='★'.repeat(Math.round(avgStars)) + '☆'.repeat(5-Math.round(avgStars));
+      label=avgStars.toFixed(2)+' / 5  ·  '+totalFb+'  条';
+      document.getElementById('avgStarsLabel').innerHTML='<span style="color:#ffd45f;text-shadow:0 0 6px rgba(255,196,80,.6)">'+starsText+'</span>  ·  '+totalFb+'  条';
+    }else{
+      document.getElementById('avgStarsLabel').textContent='暂无反馈';
+    }
     document.getElementById('avgResponse').textContent=(data.avg_response_time||0)+'s';
 
     document.getElementById('sumTotalUsers').textContent=data.total_users||0;
@@ -639,21 +682,26 @@ async function loadDashboard(){
         else window._adminTooltip.line.start();
     }
 
-    // 情感饼图
+    // 情感饼图（5 星级分布）
     if(!sentimentPieChart && document.getElementById('sentimentPieChart'))
         sentimentPieChart=echarts.init(document.getElementById('sentimentPieChart'));
-    var sent=data.sentiment||{total:{good:0,neutral:0,bad:0},daily:[]};
+    var sent=data.sentiment||{total:{good:0,neutral:0,bad:0},total_stars:{'1':0,'2':0,'3':0,'4':0,'5':0},daily:[]};
+    var totalStars = sent.total_stars||{'1':0,'2':0,'3':0,'4':0,'5':0};
+    var totalAllStars = (totalStars['1']||0)+(totalStars['2']||0)+(totalStars['3']||0)+(totalStars['4']||0)+(totalStars['5']||0);
+    var pieColors={1:'#ff8585',2:'#ff9a7b',3:'#ffb86b',4:'#c9ff78',5:'#6effa0'};
     if(sentimentPieChart){
         sentimentPieChart.setOption({
             tooltip:{trigger:'item',backgroundColor:'#04142a',borderColor:'#0a6fb0',textStyle:{color:'#eaf6ff'},formatter:'{b}: {c} ({d}%)'},
             legend:{orient:'horizontal',bottom:0,textStyle:{color:'#6ea5d6'}},
             series:[{type:'pie',radius:['40%','70%'],center:['50%','45%'],
                 itemStyle:{borderRadius:6,borderColor:'#02060f',borderWidth:2},
-                label:{show:true,color:'#bcd4ef',formatter:'{b}\n{d}%'},
+                label:{show:true,color:'#bcd4ef',formatter:'{b}★\n{d}%'},
                 data:[
-                    {name:'正面',value:sent.total.good||0,itemStyle:{color:'#6effa0'}},
-                    {name:'中性',value:sent.total.neutral||0,itemStyle:{color:'#ffb86b'}},
-                    {name:'负面',value:sent.total.bad||0,itemStyle:{color:'#ff8585'}}
+                    {name:'1',value:totalStars['1']||0,itemStyle:{color:pieColors[1]}},
+                    {name:'2',value:totalStars['2']||0,itemStyle:{color:pieColors[2]}},
+                    {name:'3',value:totalStars['3']||0,itemStyle:{color:pieColors[3]}},
+                    {name:'4',value:totalStars['4']||0,itemStyle:{color:pieColors[4]}},
+                    {name:'5',value:totalStars['5']||0,itemStyle:{color:pieColors[5]}}
                 ]
             }]
         });
@@ -667,41 +715,43 @@ async function loadDashboard(){
         }
     }
 
-    // 情感趋势（近7天）
+    // 情感趋势（近7天 · 5 星级折线 + 正面/中性/负面 折线保留作参考）
     if(!sentimentLineChart && document.getElementById('sentimentLineChart'))
         sentimentLineChart=echarts.init(document.getElementById('sentimentLineChart'));
     var dailyArr=sent.daily||[];
     if(sentimentLineChart){
+        var starLabels=['1','2','3','4','5'];
+        var starSeries = starLabels.map(function(s){
+            return {
+                name:s+'★',
+                type:'line', smooth:true, connectNulls:true,
+                symbol:'circle', symbolSize:5, showSymbol:true,
+                data:dailyArr.map(function(x){
+                    var v=(x.stars&&x.stars[s])||0;
+                    return v>0?v:null;
+                }),
+                lineStyle:{color:pieColors[parseInt(s,10)],width:2},
+                itemStyle:{color:pieColors[parseInt(s,10)]},
+                areaStyle:{color:'rgba(0,0,0,0)'}
+            };
+        });
         sentimentLineChart.setOption({
             tooltip:{trigger:'axis',backgroundColor:'#04142a',borderColor:'#0a6fb0',textStyle:{color:'#eaf6ff'},
                 formatter:function(ps){
                     var d=dailyArr[ps[0].dataIndex];
                     var head='<div style="font-weight:600;margin-bottom:4px">'+d.date+'</div>';
-                    var order=['正面','中性','负面'];
-                    var cols={'正面':'#6effa0','中性':'#ffb86b','负面':'#ff8585'};
-                    var raw={'正面':d.good||0,'中性':d.neutral||0,'负面':d.bad||0};
-                    var body=order.map(function(name){
-                        var col=cols[name],v=raw[name];
-                        return '<div style="display:flex;justify-content:space-between;gap:14px"><span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+col+';margin-right:6px;box-shadow:0 0 6px '+col+'"></span>'+name+'</span><span style="font-weight:700;color:'+col+'">'+v+'</span></div>';
+                    var body=ps.map(function(p){
+                        var col=pieColors[parseInt(p.seriesName,10)]||'#bcd4ef';
+                        return '<div style="display:flex;justify-content:space-between;gap:14px"><span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+col+';margin-right:6px"></span>'+p.seriesName+'</span><span style="font-weight:700;color:'+col+'">'+(p.value==null?0:p.value)+'</span></div>';
                     }).join('');
                     return head+body;
                 }
             },
-            legend:{data:['正面','中性','负面'],textStyle:{color:'#6ea5d6'},top:0},
+            legend:{data:['1★','2★','3★','4★','5★'],textStyle:{color:'#6ea5d6'},top:0},
             grid:{left:34,right:14,top:42,bottom:24},
             xAxis:{type:'category',data:dailyArr.map(function(x){return x.date}),boundaryGap:false,axisLine:{lineStyle:{color:'#0a6fb0'}},axisLabel:{color:'#6ea5d6',fontSize:10}},
             yAxis:{type:'value',minInterval:1,axisLine:{show:false},axisLabel:{color:'#6ea5d6',fontSize:10},splitLine:{lineStyle:{color:'rgba(10,111,176,.18)'}}},
-            series:[
-                {name:'正面',type:'line',smooth:true,connectNulls:true,symbol:'circle',symbolSize:5,showSymbol:true,
-                    data:dailyArr.map(function(x){var v=x.good||0;return v>0?v:null}),
-                    lineStyle:{color:'#6effa0',width:2},itemStyle:{color:'#6effa0'},areaStyle:{color:'rgba(110,255,160,.15)'}},
-                {name:'中性',type:'line',smooth:true,connectNulls:true,symbol:'circle',symbolSize:5,showSymbol:true,
-                    data:dailyArr.map(function(x){var v=x.neutral||0;return v>0?v:null}),
-                    lineStyle:{color:'#ffb86b',width:2},itemStyle:{color:'#ffb86b'},areaStyle:{color:'rgba(255,184,107,.12)'}},
-                {name:'负面',type:'line',smooth:true,connectNulls:true,symbol:'circle',symbolSize:5,showSymbol:true,
-                    data:dailyArr.map(function(x){var v=x.bad||0;return v>0?v:null}),
-                    lineStyle:{color:'#ff8585',width:2},itemStyle:{color:'#ff8585'},areaStyle:{color:'rgba(255,133,133,.12)'}}
-            ]
+            series:starSeries
         });
     }
 
@@ -787,43 +837,182 @@ async function loadHistory(){
 async function loadFeedbacks(){
     var res=await fetch('/api/admin/feedbacks');
     var feedbacks=await res.json();
-    var good=feedbacks.filter(f=>f.rating==='good').length;
-    var neutral=feedbacks.filter(f=>f.rating==='neutral').length;
-    var bad=feedbacks.filter(f=>f.rating==='bad').length;
-    document.getElementById('goodCount').textContent=good;
-    document.getElementById('neutralCount').textContent=neutral;
-    document.getElementById('badCount').textContent=bad;
+    var counts={'1':0,'2':0,'3':0,'4':0,'5':0};
+    feedbacks.forEach(function(f){
+        var s=f.stars;
+        if(s==null||s===undefined){
+            var r=f.rating;
+            if(r==='good')s=5;
+            else if(r==='neutral')s=3;
+            else if(r==='bad')s=1;
+            else s=parseInt(r,10);
+        }
+        s=Math.max(1,Math.min(5,parseInt(s,10)||3));
+        counts[String(s)]++;
+    });
+    for(var i=1;i<=5;i++){
+        var el=document.getElementById('star'+i);
+        if(el)el.textContent=counts[String(i)]||0;
+    }
+    var labels={1:'很差',2:'较差',3:'一般',4:'满意',5:'非常满意'};
     var listDiv=document.getElementById('feedbackList');
     listDiv.innerHTML=feedbacks.slice().reverse().map(f=>{
         var ts=new Date(f.timestamp*1000);
         var pad=x=>x<10?'0'+x:x;
         var t=pad(ts.getHours())+':'+pad(ts.getMinutes());
-        var cls=f.rating==='good'?'good':f.rating==='bad'?'bad':'warn';
-        var label=f.rating==='good'?'满意':f.rating==='bad'?'不满意':'一般';
-        return `<div class="feed-item"><span class="dot ${cls}"></span><span class="time">${f.date} ${t}</span><span class="content" style="color:${cls==='good'?'#6effa0':cls==='bad'?'#ff8585':'#ffb86b'}">${label}</span></div>`;
+        var s=f.stars;
+        if(s==null||s===undefined){
+            var r=f.rating;
+            if(r==='good')s=5;
+            else if(r==='neutral')s=3;
+            else if(r==='bad')s=1;
+            else s=parseInt(r,10);
+        }
+        s=Math.max(1,Math.min(5,parseInt(s,10)||3));
+        var cat=s>=4?'good':s===3?'neutral':'bad';
+        var cls=cat==='good'?'good':cat==='bad'?'bad':'warn';
+        var col=cat==='good'?'#6effa0':cat==='bad'?'#ff8585':'#ffb86b';
+        var starsText=('<span style="color:'+col+'">★</span>'+'<span style="opacity:.25">★★★★</span>').slice(0, s*10) + ('<span style="opacity:.25">★</span>').repeat(s<5?5-s:0);
+        return '<div class="feed-item"><span class="dot '+cls+'"></span><span class="time">'+f.date+' '+t+'</span><span class="content" style="color:'+col+';font-weight:700">'+s+'/5  '+labels[s]+'</span></div>';
     }).join('');
 }
 
 async function loadDocuments(){
-    var res=await fetch('/api/admin/documents');
-    var docs=await res.json();
-    document.getElementById('docList').innerHTML=docs.map(d=>`<div style="padding:6px 0;border-bottom:1px dashed rgba(0,160,240,.18);color:#bcd4ef;font-size:13px">📄 ${d.name}</div>`).join('');
+    try{
+        var res=await fetch('/api/admin/documents');
+        var docs=await res.json();
+        if(!Array.isArray(docs)) docs=[];
+        if(docs.length===0){
+            document.getElementById('docList').innerHTML=
+                '<div style="padding:14px;color:#7fa9d6;font-size:12px">暂无文档，拖拽文件或点击上方区域上传</div>';
+            return;
+        }
+        var rows=docs.sort((a,b)=>a.name.localeCompare(b.name));
+        var html='<div style="display:grid;grid-template-columns:30px 360px 80px 90px 70px;gap:6px 10px;font-size:12px;color:#7fa9d4;padding:8px 12px;border-bottom:1px solid rgba(0,160,240,.18)">'
+            +'<span>#</span><span>文件名</span><span>类型</span><span style="text-align:right">大小</span><span style="text-align:center">操作</span>'
+            +'</div>';
+        rows.forEach(function(d,i){
+            var sizeStr=d.size<1024?d.size+'B':d.size<1024*1024?(d.size/1024).toFixed(1)+'KB':(d.size/1024/1024).toFixed(2)+'MB';
+            var iconMap={txt:'📄',md:'📝',pdf:'📕',docx:'📘',doc:'📗',xlsx:'📊',xls:'📑'};
+            var icon=iconMap[d.ext]||'📄';
+            html+=
+                '<div style="display:grid;grid-template-columns:30px 360px 80px 90px 70px;gap:6px 10px;padding:8px 12px;border-bottom:1px dashed rgba(0,160,240,.1);font-size:12px;align-items:center">'
+                +'<span style="color:#4f7aa4">'+(i+1)+'</span>'
+                +'<span style="color:#bcd4ef;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+icon+'  '+escapeHtml(d.name)+'</span>'
+                +'<span style="color:#00eaff">.'+escapeHtml(d.ext)+'</span>'
+                +'<span style="color:#bcd4ef;text-align:right;font-family:Consolas,monospace">'+sizeStr+'</span>'
+                +'<span style="text-align:center"><button class="btn" style="padding:2px 10px;border-color:#ff8585;color:#ff8585;background:rgba(255,133,133,.08)" onclick=\'deleteDoc('+JSON.stringify(d.name)+')\'>删除</button></span>'
+                +'</div>';
+        });
+        document.getElementById('docList').innerHTML=html;
+    }catch(e){
+        document.getElementById('docList').innerHTML=
+            '<div style="padding:14px;color:#ff8585;font-size:12px">加载失败: '+e+'</div>';
+    }
 }
-async function uploadDocument(){
-    var file=document.getElementById('docFile').files[0];
-    if(!file) return;
-    var form=new FormData();form.append('file',file);
-    var res=await fetch('/api/admin/upload-document',{method:'POST',body:form});
-    var data=await res.json();
-    document.getElementById('uploadStatus').textContent=data.status==='ok'?'上传成功':'上传失败';
+
+function escapeHtml(s){var d=document.createElement('div');d.appendChild(document.createTextNode(s));return d.innerHTML}
+
+async function deleteDoc(name){
+    if(!confirm('确定删除文档「'+name+'」并重新索引吗？')) return;
+    try{
+        var res=await fetch('/api/admin/delete-document',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name})});
+        var data=await res.json();
+        if(data.status==='ok'||data.status==='partial'){
+            setStatus('已删除 · 切分 '+data.chunks+' 条 · 共 '+data.docs+' 个文档', '#6effa0');
+        }else{
+            setStatus('删除失败: '+data.message, '#ff8585');
+        }
+    }catch(e){
+        setStatus('删除失败: '+e, '#ff8585');
+    }
     loadDocuments();
 }
-async function rebuildIndex(){
-    if(!confirm('重建索引将使新上传的文档生效，确定继续吗？')) return;
-    var res=await fetch('/api/admin/rebuild-index',{method:'POST'});
-    var data=await res.json();
-    alert(data.status==='ok'?'索引重建成功！':'重建失败：'+data.message);
+
+function setStatus(msg,color){
+    var el=document.getElementById('uploadStatus');
+    el.textContent=msg||'';
+    if(color) el.style.color=color;
 }
+
+async function uploadDocuments(){
+    var input=document.getElementById('docFile');
+    var files=input?input.files:null;
+    if(!files||files.length===0){ setStatus('请先选择文件','#ffb86b'); return; }
+    var form=new FormData();
+    for(var i=0;i<files.length;i++) form.append('files',files[i]);
+
+    var prog=document.getElementById('uploadProgress');
+    prog.style.display='block';
+    var pctEl=document.getElementById('progPct'), barEl=document.getElementById('progBar'), lblEl=document.getElementById('progLabel');
+    pctEl.textContent='0%'; barEl.style.width='0%'; lblEl.textContent='上传中 '+files.length+' 个文件...';
+
+    try{
+        var res=await fetch('/api/admin/upload-documents',{method:'POST',body:form});
+        var data=await res.json();
+        pctEl.textContent='100%'; barEl.style.width='100%';
+        if(data.status==='ok'){
+            setStatus(
+                '已上传 '+data.saved.length+' 个 · 切分 '+data.chunks+' 条 · 共 '+data.docs+' 个文档'+
+                (data.errors.length?' · 失败 '+data.errors.length+' 个':''),
+                '#6effa0'
+            );
+        }else if(data.status==='partial'){
+            setStatus('部分成功 · 切分 '+data.chunks+' 条，但索引重建失败: '+data.message, '#ffb86b');
+        }else{
+            setStatus('上传失败: '+(data.message||'未知错误'), '#ff8585');
+        }
+    }catch(e){
+        setStatus('网络错误: '+e, '#ff8585');
+    }
+    prog.style.display='none';
+    loadDocuments();
+    // 清空选择
+    if(input) input.value='';
+}
+
+async function rebuildIndex(){
+    try{
+        var res=await fetch('/api/admin/rebuild-index',{method:'POST'});
+        var data=await res.json();
+        if(data.status==='ok'){
+            setStatus('重建完成 · 切分 '+data.chunks+' 条 · 共 '+data.docs+' 个文档', '#6effa0');
+        }else{
+            setStatus('重建失败: '+data.message, '#ff8585');
+        }
+    }catch(e){
+        setStatus('重建失败: '+e, '#ff8585');
+    }
+}
+
+// 拖拽 & 点击上传
+(function setupDropZone(){
+    var zone=document.getElementById('docDropZone');
+    var input=document.getElementById('docFile');
+    if(!zone||!input) return;
+    zone.addEventListener('click',function(){ input.click(); });
+    input.addEventListener('change',function(){
+        if(input.files&&input.files.length) uploadDocuments();
+    });
+    ['dragenter','dragover'].forEach(function(ev){
+        zone.addEventListener(ev,function(e){ e.preventDefault(); zone.style.borderColor='#00eaff'; zone.style.boxShadow='0 0 14px rgba(0,234,255,.35) inset'; });
+    });
+    ['dragleave','drop'].forEach(function(ev){
+        zone.addEventListener(ev,function(){ zone.style.borderColor=''; zone.style.boxShadow=''; });
+    });
+    zone.addEventListener('drop',function(e){
+        e.preventDefault();
+        if(e.dataTransfer.files&&e.dataTransfer.files.length){
+            try{
+                input.files=e.dataTransfer.files;
+            }catch(ex){
+                setStatus('浏览器不支持拖拽直接上传，改用点击选择', '#ffb86b');
+                return;
+            }
+            uploadDocuments();
+        }
+    });
+})();
 
 async function loadModels(){
     try{

@@ -19,8 +19,8 @@ def clean_text_for_tts(text):
     return re.sub(r'[#*`~\-]+', '', stripped)
 
 from datetime import date, timedelta
-import io, csv
-import os, sys, uuid, subprocess, re, time
+import asyncio, io, csv, subprocess, re, time, hashlib
+import os, sys, uuid, shutil
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import FastAPI, UploadFile, File, Form
@@ -47,7 +47,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 def remove_emoji(text):
     return clean_text_for_tts(text)
 
-# 预设回答（无需调用大模型）
 PRESET_REPLIES = {
     '你是谁': '我是小灵，灵山胜境的AI数字导游。我可以为您讲解灵山大佛、梵宫等景点，推荐游览路线，解答各类景区问题。随时问我吧！',
     '介绍自己': '我叫小灵，是灵山胜境景区的专属AI导游。我熟悉这里的每一个景点和每一段故事，希望能带您领略千年佛国的魅力。',
@@ -68,6 +67,79 @@ class ChatRequest(BaseModel):
     text: str
     voice: str = None
 
+
+# ========== async helpers ==========
+
+async def run_subprocess_async(cmd, input_bytes=None, timeout=None):
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdin=asyncio.subprocess.PIPE if input_bytes is not None else None,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(input=input_bytes), timeout=timeout)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        raise
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, cmd, output=stdout, stderr=stderr)
+    return stdout, stderr
+
+
+async def ffmpeg_convert_to_wav_async(src_path, dst_wav):
+    cmd = ['ffmpeg', '-y', '-i', src_path, '-ar', '16000', '-ac', '1', dst_wav]
+    await run_subprocess_async(cmd, timeout=15)
+
+
+async def tts_synthesize_async(text, output_path, voice=None):
+    actual_voice = voice or tts.voice
+    cache_file = tts._cache_path(text, actual_voice)
+
+    if os.path.exists(cache_file):
+        if not os.path.isabs(output_path):
+            output_path = os.path.join(os.getcwd(), output_path)
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        shutil.copy2(cache_file, output_path)
+        return output_path
+
+    if not os.path.isabs(output_path):
+        output_path = os.path.join(os.getcwd(), output_path)
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    try:
+        cmd = ['edge-tts', '--voice', actual_voice, '--text', text, '--write-media', cache_file]
+        await run_subprocess_async(cmd, timeout=20)
+        shutil.copy2(cache_file, output_path)
+        tts._mem_cache[f"{text}_{actual_voice}"] = cache_file
+    except Exception as e:
+        print(f"TTS async fail: {e}, fallback silence")
+        import wave, struct
+        with wave.open(output_path, 'w') as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(16000)
+            wf.writeframes(struct.pack('<h', 0) * 32000)
+    return output_path
+
+
+async def rag_answer_async(user_query):
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, rag.answer, user_query)
+
+
+async def asr_transcribe_async(wav_path):
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, asr.transcribe, wav_path)
+
+
+def gen_reply_audio_path():
+    return f"../data/processed/reply_{uuid.uuid4().hex[:8]}.wav"
+
+
+# ========== 路由 ==========
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     with open(os.path.join(BASE_DIR, 'static', 'index.html'), 'r', encoding='utf-8') as f:
@@ -80,7 +152,6 @@ async def set_voice(voice_id: str):
 
 @app.get("/api/config/voices")
 async def get_voices():
-    """获取可用的语音音色列表"""
     voices = [
         {"id": "zh-CN-XiaoxiaoNeural", "name": "晓晓", "gender": "女", "style": "温暖亲切"},
         {"id": "zh-CN-XiaoyiNeural", "name": "小艺", "gender": "女", "style": "活泼可爱"},
@@ -94,34 +165,32 @@ async def get_voices():
 @app.post("/api/chat/tts")
 async def text_to_speech(req: ChatRequest):
     start = time.time()
-    
-    # 检查预设回答（快速路径）
+
     preset = get_preset_reply(req.text)
     if preset:
-        reply_audio = f"../data/processed/reply_{uuid.uuid4().hex[:8]}.wav"
+        reply_audio = gen_reply_audio_path()
         tts_start = time.time()
-        tts.synthesize(preset, reply_audio, voice=req.voice)
+        await tts_synthesize_async(preset, reply_audio, voice=req.voice)
         tts_time = time.time() - tts_start
         duration = time.time() - start
         print(f"[TIMER] Preset reply - TTS: {tts_time:.2f}s, Total: {duration:.2f}s")
         logger.add(req.text, preset, duration=duration, source="tts")
         return {"question": req.text, "answer": preset, "audioUrl": f"/api/audio/{os.path.basename(reply_audio)}"}
-    
-    # RAG问答路径
+
     rag_start = time.time()
-    result = rag.answer(req.text)
+    result = await rag_answer_async(req.text)
     rag_time = time.time() - rag_start
-    
+
     clean_answer = remove_emoji(result['answer'])
-    
+
     tts_start = time.time()
-    reply_audio = f"../data/processed/reply_{uuid.uuid4().hex[:8]}.wav"
-    tts.synthesize(clean_answer, reply_audio, voice=req.voice)
+    reply_audio = gen_reply_audio_path()
+    await tts_synthesize_async(clean_answer, reply_audio, voice=req.voice)
     tts_time = time.time() - tts_start
-    
+
     duration = time.time() - start
     print(f"[TIMER] RAG: {rag_time:.2f}s, TTS: {tts_time:.2f}s, Total: {duration:.2f}s")
-    
+
     logger.add(req.text, clean_answer, duration=duration, source="tts")
     return {
         "question": result['question'],
@@ -137,7 +206,7 @@ async def text_chat(req: ChatRequest):
         duration = time.time() - start
         logger.add(req.text, preset, duration=duration, source="text")
         return {"question": req.text, "answer": preset, "sources": []}
-    result = rag.answer(req.text)
+    result = await rag_answer_async(req.text)
     clean_answer = remove_emoji(result['answer'])
     duration = time.time() - start
     logger.add(req.text, clean_answer, duration=duration, source="text")
@@ -147,26 +216,93 @@ async def text_chat(req: ChatRequest):
         "sources": result['sources']
     }
 
+@app.post("/api/chat/voice16")
+async def voice16_chat(file: UploadFile = File(...)):
+    start = time.time()
+    ts = time.time()
+    wav = f"../data/processed/{uuid.uuid4().hex[:8]}.wav"
+    payload = await file.read()
+    t_io = time.time() - ts
+    with open(wav, "wb") as f:
+        f.write(payload)
+
+    ts = time.time()
+    user_text = await asr_transcribe_async(wav) or "未识别"
+    t_asr = time.time() - ts
+    print(f"[voice16] io={t_io:.2f}s asr={t_asr:.2f}s text={user_text}")
+
+    preset = get_preset_reply(user_text)
+    if preset:
+        reply_audio = gen_reply_audio_path()
+        await tts_synthesize_async(preset, reply_audio)
+        duration = time.time() - start
+        logger.add(user_text, preset, duration=duration, source="voice16")
+        return {"user_text": user_text, "reply_text": preset, "audioUrl": f"/api/audio/{os.path.basename(reply_audio)}"}
+
+    ts = time.time()
+    result = await rag_answer_async(user_text)
+    t_rag = time.time() - ts
+    clean_answer = remove_emoji(result['answer'])
+
+    ts = time.time()
+    reply_audio = gen_reply_audio_path()
+    await tts_synthesize_async(clean_answer, reply_audio)
+    t_tts = time.time() - ts
+
+    duration = time.time() - start
+    print(f"[TIMER] voice16 total={duration:.2f}s | io={t_io:.2f} asr={t_asr:.2f} rag={t_rag:.2f} tts={t_tts:.2f}")
+    logger.add(user_text, clean_answer, duration=duration, source="voice16")
+    return {
+        "user_text": user_text,
+        "reply_text": clean_answer,
+        "audioUrl": f"/api/audio/{os.path.basename(reply_audio)}"
+    }
+
+
 @app.post("/api/chat/voice")
 async def voice_chat(file: UploadFile = File(...)):
     start = time.time()
+    ts = time.time()
     raw = f"../data/processed/{uuid.uuid4().hex[:8]}.webm"
     wav = raw.replace('.webm', '.wav')
-    with open(raw, "wb") as f: f.write(await file.read())
-    subprocess.run(['ffmpeg', '-y', '-i', raw, '-ar', '16000', '-ac', '1', wav], capture_output=True)
-    user_text = asr.transcribe(wav) or "未识别"
+    payload = await file.read()
+    t_io = time.time() - ts
+    with open(raw, "wb") as f:
+        f.write(payload)
+
+    ts = time.time()
+    try:
+        await ffmpeg_convert_to_wav_async(raw, wav)
+        t_ffmpeg = time.time() - ts
+    except Exception as e:
+        print(f"[voice] ffmpeg failed: {e}, fallback: reuse raw")
+        wav = raw
+
+    ts = time.time()
+    user_text = await asr_transcribe_async(wav) or "未识别"
+    t_asr = time.time() - ts
+    print(f"[voice] io={t_io:.2f}s ffmpeg={t_ffmpeg:.2f}s asr={t_asr:.2f}s text={user_text}")
+
     preset = get_preset_reply(user_text)
     if preset:
-        reply_audio = f"../data/processed/reply_{uuid.uuid4().hex[:8]}.wav"
-        tts.synthesize(preset, reply_audio)
+        reply_audio = gen_reply_audio_path()
+        await tts_synthesize_async(preset, reply_audio)
         duration = time.time() - start
         logger.add(user_text, preset, duration=duration, source="voice")
         return {"user_text": user_text, "reply_text": preset, "audioUrl": f"/api/audio/{os.path.basename(reply_audio)}"}
-    result = rag.answer(user_text)
+
+    ts = time.time()
+    result = await rag_answer_async(user_text)
+    t_rag = time.time() - ts
     clean_answer = remove_emoji(result['answer'])
-    reply_audio = f"../data/processed/reply_{uuid.uuid4().hex[:8]}.wav"
-    tts.synthesize(clean_answer, reply_audio)
+
+    ts = time.time()
+    reply_audio = gen_reply_audio_path()
+    await tts_synthesize_async(clean_answer, reply_audio)
+    t_tts = time.time() - ts
+
     duration = time.time() - start
+    print(f"[TIMER] voice total={duration:.2f}s | io={t_io:.2f} ffmpeg={t_ffmpeg:.2f} asr={t_asr:.2f} rag={t_rag:.2f} tts={t_tts:.2f}")
     logger.add(user_text, clean_answer, duration=duration, source="voice")
     return {
         "user_text": user_text,
@@ -177,25 +313,24 @@ async def voice_chat(file: UploadFile = File(...)):
 @app.get("/api/audio/{filename}")
 async def get_audio(filename: str):
     path = f"../data/processed/{filename}"
-    if not os.path.exists(path): return Response(status_code=404)
-    with open(path, 'rb') as f: content = f.read()
+    if not os.path.exists(path):
+        return Response(status_code=404)
+    with open(path, 'rb') as f:
+        content = f.read()
     return Response(content=content, media_type="audio/wav")
 
 
 @app.post("/api/chat/image")
 async def image_chat(text: str = Form(""), file: UploadFile = File(...)):
-    """支持图片提问：用户上传照片并提问，调用 DashScope 多模态大模型"""
-    # 保存上传的图片
     img_bytes = await file.read()
     img_path = f"../data/processed/img_{uuid.uuid4().hex[:8]}.jpg"
     with open(img_path, "wb") as f:
         f.write(img_bytes)
-    
-    # 调用 DashScope 多模态 API（qwen-vl-plus 支持图片理解）
+
     try:
         import dashscope
         from dashscope import MultiModalConversation
-        
+
         messages = [{
             "role": "system",
             "content": [{"text": "你是灵山胜境景区的AI导游小灵，请根据图片和问题，结合景区知识回答。"}]
@@ -206,27 +341,28 @@ async def image_chat(text: str = Form(""), file: UploadFile = File(...)):
                 {"text": text or "请描述这张图片"}
             ]
         }]
-        
+
         response = MultiModalConversation.call(
             model="qwen-vl-plus",
             messages=messages,
             api_key=os.getenv("DASHSCOPE_API_KEY")
         )
-        
+
         if response.status_code == 200:
             answer = response.output.choices[0].message.content[0]["text"]
         else:
             answer = "抱歉，小灵无法理解这张图片"
     except Exception as e:
         print(f"多模态API调用失败: {e}")
-        answer = rag.answer(text)['answer'] if text else "请提供问题描述"
-    
-    # 合成语音
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, rag.answer, text) if text else {"answer": "请提供问题描述"}
+        answer = result.get("answer", "请提供问题描述")
+
     clean_answer = remove_emoji(answer)
-    tts_audio = f"../data/processed/reply_{uuid.uuid4().hex[:8]}.wav"
-    tts.synthesize(clean_answer, tts_audio)
+    tts_audio = gen_reply_audio_path()
+    await tts_synthesize_async(clean_answer, tts_audio)
     logger.add(text or "图片提问", clean_answer, source="image")
-    
+
     return {
         "answer": clean_answer,
         "audioUrl": f"/api/audio/{os.path.basename(tts_audio)}"
@@ -251,21 +387,19 @@ async def admin():
         return f.read()
 
 
-from pydantic import BaseModel
-
 class FeedbackRequest(BaseModel):
-    rating: str  # good, neutral, bad
+    rating: str | int
 
 @app.post("/api/feedback")
 async def feedback(req: FeedbackRequest):
-    if req.rating not in ("good", "neutral", "bad"):
+    rating = req.rating
+    valid = {"good", "neutral", "bad", "1", "2", "3", "4", "5", 1, 2, 3, 4, 5}
+    if rating not in valid:
         return {"status": "error", "message": "无效的评分"}
-    logger.add_feedback(req.rating)
+    logger.add_feedback(rating)
     return {"status": "ok"}
 
 
-
-# ========== 数字人形象管理 ==========
 from fastapi import UploadFile
 import shutil
 import json
@@ -308,31 +442,25 @@ async def delete_avatar(filename: str):
 
 @app.post("/api/admin/upload-live2d")
 async def upload_live2d_model(file: UploadFile = File(...)):
-    """上传 Live2D 模型文件夹（支持 zip 格式）"""
     import zipfile
 
     if not file.filename.endswith('.zip'):
         return {"error": "仅支持 ZIP 格式的 Live2D 模型"}
 
-    # 创建临时目录
     temp_dir = os.path.join(BASE_DIR, "static", "live2d", "custom_models", uuid.uuid4().hex)
     os.makedirs(temp_dir, exist_ok=True)
 
     try:
-        # 保存 zip 文件
         zip_path = os.path.join(temp_dir, file.filename)
         with open(zip_path, "wb") as f:
             content = await file.read()
             f.write(content)
 
-        # 解压 zip
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(temp_dir)
 
-        # 删除 zip 文件
         os.remove(zip_path)
 
-        # 查找 model.json 文件
         model_json_path = None
         model_name = file.filename.replace('.zip', '')
 
@@ -340,7 +468,6 @@ async def upload_live2d_model(file: UploadFile = File(...)):
             for fname in files:
                 if fname.endswith('.model.json'):
                     model_json_path = os.path.join(root, fname)
-                    # 从 model.json 读取名称
                     try:
                         with open(model_json_path, 'r', encoding='utf-8') as f:
                             model_data = json.load(f)
@@ -353,18 +480,14 @@ async def upload_live2d_model(file: UploadFile = File(...)):
                 break
 
         if not model_json_path:
-            # 清理临时目录
             shutil.rmtree(temp_dir, ignore_errors=True)
             return {"error": "未找到 .model.json 文件，请确认是有效的 Live2D 模型"}
 
-        # 获取相对于 static/live2d 的路径
         rel_path = os.path.relpath(model_json_path, os.path.join(BASE_DIR, "static", "live2d"))
         model_url = f"/static/live2d/{rel_path.replace(os.sep, '/')}"
 
-        # 生成模型 ID
         model_id = uuid.uuid4().hex[:8]
 
-        # 添加到 models.json
         models_file = os.path.join(BASE_DIR, "static", "live2d", "models.json")
         try:
             with open(models_file, 'r', encoding='utf-8') as f:
@@ -372,12 +495,7 @@ async def upload_live2d_model(file: UploadFile = File(...)):
         except:
             models_data = {"models": []}
 
-        # 检查是否已存在相同路径
-        existing = False
-        for m in models_data.get("models", []):
-            if m.get("modelUrl") == model_url:
-                existing = True
-                break
+        existing = any(m.get("modelUrl") == model_url for m in models_data.get("models", []))
 
         if not existing:
             new_model = {
@@ -389,7 +507,6 @@ async def upload_live2d_model(file: UploadFile = File(...)):
                 "custom": True
             }
             models_data["models"].append(new_model)
-
             with open(models_file, 'w', encoding='utf-8') as f:
                 json.dump(models_data, f, ensure_ascii=False, indent=2)
 
@@ -403,13 +520,11 @@ async def upload_live2d_model(file: UploadFile = File(...)):
         }
 
     except Exception as e:
-        # 清理临时目录
         shutil.rmtree(temp_dir, ignore_errors=True)
         return {"error": f"处理失败: {str(e)}"}
 
 @app.delete("/api/admin/delete-live2d/{model_id}")
 async def delete_live2d_model(model_id: str):
-    """删除自定义 Live2D 模型"""
     models_file = os.path.join(BASE_DIR, "static", "live2d", "models.json")
     try:
         with open(models_file, 'r', encoding='utf-8') as f:
@@ -430,9 +545,7 @@ async def delete_live2d_model(model_id: str):
 
 @app.get("/api/admin/refresh-models")
 async def refresh_models():
-    """刷新模型列表（重新读取 models.json）"""
     return {"status": "ok"}
-
 
 
 @app.get("/api/admin/export")
@@ -468,34 +581,129 @@ async def daily_stats():
 
 @app.get("/api/admin/documents")
 async def list_documents():
-    doc_dir = os.path.join(BASE_DIR, "..", "data", "raw")
-    files = os.listdir(doc_dir) if os.path.exists(doc_dir) else []
-    return [{"name": f} for f in files if not f.startswith('.')]
+    return rag.kb.list_files()
+
 
 @app.post("/api/admin/upload-document")
 async def upload_document(file: UploadFile = File(...)):
+    ALLOW = {".txt", ".md", ".pdf", ".docx", ".doc", ".xlsx", ".xls"}
+    filename = file.filename or ""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in ALLOW:
+        return {"status": "error", "message": f"不支持的文件类型 {ext}，仅允许: {', '.join(sorted(ALLOW))}"}
+
     save_dir = os.path.join(BASE_DIR, "..", "data", "raw")
     os.makedirs(save_dir, exist_ok=True)
-    filepath = os.path.join(save_dir, file.filename)
-    with open(filepath, "wb") as f:
-        f.write(await file.read())
-    # 重建向量库（可选，这里不自动重建，由用户手动触发）
-    return {"status": "ok", "filename": file.filename}
+    # 去重：同名覆盖 → 自动加 _1 / _2 后缀
+    base_name = filename
+    target_path = os.path.join(save_dir, base_name)
+    n = 1
+    while os.path.exists(target_path):
+        stem, e = os.path.splitext(base_name)
+        target_path = os.path.join(save_dir, f"{stem}_{n}{e}")
+        n += 1
 
+    try:
+        content = await file.read()
+        if len(content) == 0:
+            return {"status": "error", "message": "文件为空"}
+        with open(target_path, "wb") as f:
+            f.write(content)
+    except Exception as e:
+        return {"status": "error", "message": f"保存失败: {e}"}
+
+    try:
+        info = rag.kb.build_vector_store()
+        rag.clear_history()
+        return {
+            "status": "ok",
+            "filename": os.path.basename(target_path),
+            "size": len(content),
+            "chunks": info.get("chunks", 0),
+            "docs": info.get("docs", 0),
+        }
+    except Exception as e:
+        return {
+            "status": "partial",
+            "message": f"文件已保存但索引重建失败: {e}",
+            "filename": os.path.basename(target_path),
+        }
+
+
+@app.post("/api/admin/upload-documents")
+async def upload_documents(files: list[UploadFile] = File(...)):
+    ALLOW = {".txt", ".md", ".pdf", ".docx", ".doc", ".xlsx", ".xls"}
+    save_dir = os.path.join(BASE_DIR, "..", "data", "raw")
+    os.makedirs(save_dir, exist_ok=True)
+    saved, errors = [], []
+    for f in files:
+        ext = os.path.splitext((f.filename or ""))[1].lower()
+        if ext not in ALLOW:
+            errors.append({"filename": f.filename, "reason": f"不支持的类型 {ext}"})
+            continue
+        try:
+            content = await f.read()
+            if len(content) == 0:
+                errors.append({"filename": f.filename, "reason": "文件为空"})
+                continue
+            base_name = f.filename
+            target_path = os.path.join(save_dir, base_name)
+            n = 1
+            while os.path.exists(target_path):
+                stem, e = os.path.splitext(base_name)
+                target_path = os.path.join(save_dir, f"{stem}_{n}{e}")
+                n += 1
+            with open(target_path, "wb") as wf:
+                wf.write(content)
+            saved.append({"filename": os.path.basename(target_path), "size": len(content)})
+        except Exception as e:
+            errors.append({"filename": f.filename, "reason": str(e)})
+
+    try:
+        info = rag.kb.build_vector_store()
+        rag.clear_history()
+        return {
+            "status": "ok",
+            "saved": saved,
+            "errors": errors,
+            "chunks": info.get("chunks", 0),
+            "docs": info.get("docs", 0),
+        }
+    except Exception as e:
+        return {"status": "partial", "saved": saved, "errors": errors, "message": f"索引重建失败: {e}"}
+
+
+@app.post("/api/admin/delete-document")
+async def delete_document(payload: dict):
+    name = payload.get("name", "")
+    if not name or ".." in name or "/" in name or "\\" in name:
+        return {"status": "error", "message": "非法文件名"}
+    save_dir = os.path.join(BASE_DIR, "..", "data", "raw")
+    target = os.path.join(save_dir, name)
+    if not os.path.isfile(target):
+        return {"status": "error", "message": "文件不存在"}
+    try:
+        os.remove(target)
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    try:
+        info = rag.kb.build_vector_store()
+        rag.clear_history()
+        return {"status": "ok", "chunks": info.get("chunks", 0), "docs": info.get("docs", 0)}
+    except Exception as e:
+        return {"status": "partial", "message": f"已删除文件但索引重建失败: {e}"}
 
 
 @app.post("/api/admin/rebuild-index")
 async def rebuild_index():
     try:
-        rag.kb.build_vector_store()
-        return {"status": "ok", "message": "向量库已重建"}
+        info = rag.kb.build_vector_store()
+        rag.clear_history()
+        return {"status": "ok", "message": "向量库已重建", **info}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 
-
-# ========== 数字人模型管理 ==========
-import shutil
 MODEL_DIR = os.path.join(BASE_DIR, "static", "models")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
@@ -540,7 +748,8 @@ async def record_visit():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "uptime": time.time()}
+    return {"status": "ok", "uptime": time.time(), "rag_cache": rag.cache_hit_stats(),
+            "tts_cache_dir": CACHE_DIR if 'CACHE_DIR' in dir() else None}
 
 if __name__ == "__main__":
     import uvicorn

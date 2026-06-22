@@ -118,5 +118,48 @@
     "timestamp": 1781962180.4901748,
     "date": "2026-06-20",
     "rating": "neutral"
+  },
+  {
+    "timestamp": 1782129706.3068082,
+    "date": "2026-06-22",
+    "rating": "good"
+  },
+  {
+    "timestamp": 1782129823.0904565,
+    "date": "2026-06-22",
+    "rating": "good"
+  },
+  {
+    "timestamp": 1782131893.8536773,
+    "date": "2026-06-22",
+    "rating": "good"
+  },
+  {
+    "timestamp": 1782134427.9329991,
+    "date": "2026-06-22",
+    "rating": 5,
+    "stars": 5,
+    "category": "good"
+  },
+  {
+    "timestamp": 1782136225.2215219,
+    "date": "2026-06-22",
+    "rating": 1,
+    "stars": 1,
+    "category": "bad"
+  },
+  {
+    "timestamp": 1782137511.9790297,
+    "date": "2026-06-22",
+    "rating": 5,
+    "stars": 5,
+    "category": "good"
+  },
+  {
+    "timestamp": 1782138846.5108485,
+    "date": "2026-06-22",
+    "rating": 4,
+    "stars": 4,
+    "category": "good"
   }
 ]

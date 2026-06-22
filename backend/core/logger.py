@@ -3,6 +3,21 @@ from datetime import date, datetime, timedelta
 from collections import Counter
 from threading import Lock
 
+def _rating_to_stars(rating):
+    if isinstance(rating, int):
+        return max(1, min(5, rating))
+    m = {"good": 5, "neutral": 3, "bad": 1, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5}
+    if rating in m:
+        return m[rating]
+    return 3
+
+def _stars_to_category(stars):
+    if stars >= 4:
+        return "good"
+    if stars == 3:
+        return "neutral"
+    return "bad"
+
 class InteractionLogger:
     def __init__(self, log_path="../data/interaction_log.json"):
         self.log_path = log_path
@@ -44,11 +59,22 @@ class InteractionLogger:
         self._write(self.log_path, logs)
 
     def add_feedback(self, rating):
-        """rating: 'good', 'neutral', 'bad'"""
+        """rating: 1-5 (int or str) or legacy 'good'/'neutral'/'bad'
+        - 5 stars: good
+        - 4 stars: mostly good (still categorized as good)
+        - 3 stars: neutral
+        - 2 stars: mostly bad (still categorized as bad)
+        - 1 star: bad
+        Legacy mapping: good=5, neutral=3, bad=1
+        """
+        stars = _rating_to_stars(rating)
+        category = _stars_to_category(stars)
         entry = {
             "timestamp": time.time(),
             "date": str(date.today()),
-            "rating": rating
+            "rating": stars,
+            "stars": stars,
+            "category": category
         }
         feedbacks = self._read(self.feedback_path)
         feedbacks.append(entry)
@@ -71,11 +97,24 @@ class InteractionLogger:
         today_date = date.today()
 
         feedbacks = self._read(self.feedback_path)
-        if feedbacks:
-            good_count = sum(1 for f in feedbacks if f.get("rating") == "good")
-            satisfaction = round(good_count / len(feedbacks) * 100, 1)
-        else:
-            satisfaction = None
+
+        star_counts = {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
+        cat_counts = {"good": 0, "neutral": 0, "bad": 0}
+        sum_stars = 0
+        for f in feedbacks:
+            stars = f.get("stars")
+            if stars is None:
+                stars = _rating_to_stars(f.get("rating"))
+            stars = max(1, min(5, int(stars)))
+            star_counts[str(stars)] += 1
+            cat = _stars_to_category(stars)
+            cat_counts[cat] += 1
+            sum_stars += stars
+
+        total_fb = sum(star_counts.values())
+        avg_stars = round(sum_stars / total_fb, 2) if total_fb else None
+        good_count = cat_counts["good"]
+        satisfaction = round(good_count / total_fb * 100, 1) if total_fb else None
 
         # Monthly stats
         monthly_visits = {}
@@ -162,6 +201,10 @@ class InteractionLogger:
             "week_visitors": week_count,
             "avg_response_time": round(avg_duration, 2),
             "satisfaction_rate": satisfaction,
+            "avg_stars": avg_stars,
+            "star_counts": star_counts,
+            "category_counts": cat_counts,
+            "total_feedbacks": total_fb,
             "top_questions": top_questions,
             "total_users": total_users,
             "total_interactions": total_interactions,
@@ -184,25 +227,39 @@ class InteractionLogger:
             day = today - timedelta(days=i)
             dkey = day.strftime("%Y-%m-%d")
             cnt = {"good": 0, "neutral": 0, "bad": 0}
+            cnt_stars = {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
             for f in fb:
                 if f.get("date", "") == dkey:
-                    r = f.get("rating", "")
-                    if r in cnt:
-                        cnt[r] += 1
+                    stars = f.get("stars")
+                    if stars is None:
+                        stars = _rating_to_stars(f.get("rating"))
+                    stars = max(1, min(5, int(stars)))
+                    cnt_stars[str(stars)] += 1
+                    cat = _stars_to_category(stars)
+                    if cat in cnt:
+                        cnt[cat] += 1
             daily_counts.append({
                 "date": dkey[5:],
                 "good": cnt["good"],
                 "neutral": cnt["neutral"],
-                "bad": cnt["bad"]
+                "bad": cnt["bad"],
+                "stars": cnt_stars
             })
         totals = {"good": 0, "neutral": 0, "bad": 0}
+        totals_stars = {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
         for f in fb:
-            r = f.get("rating", "")
-            if r in totals:
-                totals[r] += 1
+            stars = f.get("stars")
+            if stars is None:
+                stars = _rating_to_stars(f.get("rating"))
+            stars = max(1, min(5, int(stars)))
+            totals_stars[str(stars)] += 1
+            cat = _stars_to_category(stars)
+            if cat in totals:
+                totals[cat] += 1
         total_all = sum(totals.values())
         if total_all == 0:
             totals = {"good": 8, "neutral": 3, "bad": 1}
+            totals_stars = {"1": 1, "2": 0, "3": 3, "4": 4, "5": 4}
             mock_dist = [2, 0, 2, 1, 2, 3, 2]
             mock_neu = [1, 0, 1, 0, 1, 0, 0]
             mock_bad = [0, 0, 0, 1, 0, 0, 0]
@@ -210,8 +267,16 @@ class InteractionLogger:
                 c["good"] = mock_dist[i]
                 c["neutral"] = mock_neu[i]
                 c["bad"] = mock_bad[i]
+                c["stars"] = {
+                    "1": 1 if mock_bad[i]>0 else 0,
+                    "2": 0,
+                    "3": mock_neu[i],
+                    "4": mock_dist[i]//2,
+                    "5": mock_dist[i] - mock_dist[i]//2
+                }
         return {
             "total": totals,
+            "total_stars": totals_stars,
             "daily": daily_counts
         }
 
