@@ -66,6 +66,7 @@ class FeedbackRequest(BaseModel):
 class ChatRequest(BaseModel):
     text: str
     voice: str = None
+    tags: list[str] | None = None
 
 
 # ========== async helpers ==========
@@ -124,9 +125,9 @@ async def tts_synthesize_async(text, output_path, voice=None):
     return output_path
 
 
-async def rag_answer_async(user_query):
+async def rag_answer_async(user_query, tags=None):
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, rag.answer, user_query)
+    return await loop.run_in_executor(None, lambda: rag.answer(user_query, tags=tags))
 
 
 async def asr_transcribe_async(wav_path):
@@ -162,9 +163,28 @@ async def get_voices():
     ]
     return {"voices": voices, "current_voice": tts.voice}
 
+def _build_effective_query(text: str, tags) -> tuple:
+    """Return (effective_query, tags_clean). Strips any existing Chinese prefix if present."""
+    if not tags and not text.startswith("【游客的兴趣是："):
+        return text, tags
+    tag_prefix = ""
+    if tags:
+        tag_prefix = "【游客的兴趣是：" + "/".join([t for t in tags if isinstance(t, str) and t.strip()]) + "】"
+    elif text.startswith("【游客的兴趣是："):
+        end = text.find("】", 9)
+        if end > 0:
+            tag_prefix = text[:end+1]
+            text = text[end+1:]
+    if tag_prefix and not text.startswith("【游客的兴趣是："):
+        return tag_prefix + text, tags
+    return text, tags
+
+
 @app.post("/api/chat/tts")
 async def text_to_speech(req: ChatRequest):
     start = time.time()
+
+    effective_query, tags_clean = _build_effective_query(req.text, req.tags)
 
     preset = get_preset_reply(req.text)
     if preset:
@@ -178,7 +198,7 @@ async def text_to_speech(req: ChatRequest):
         return {"question": req.text, "answer": preset, "audioUrl": f"/api/audio/{os.path.basename(reply_audio)}"}
 
     rag_start = time.time()
-    result = await rag_answer_async(req.text)
+    result = await rag_answer_async(effective_query, tags=tags_clean)
     rag_time = time.time() - rag_start
 
     clean_answer = remove_emoji(result['answer'])

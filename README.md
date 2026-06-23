@@ -63,6 +63,34 @@ export DASHSCOPE_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 > 账号需开通百炼控制台里 **qwen-plus** 和 **qwen-vl-plus** 两个模型（通常默认已开通）。
 
+### 大语言模型清单
+
+项目使用阿里云百炼（DashScope）平台上的通义千问（Qwen）系列，以及本地 FunASR 语音模型。全部列在下表：
+
+| 模块 | 模型 | 平台 / 提供商 | 代码位置 |
+|------|------|---------------|----------|
+| 文本对话 LLM（RAG 问答核心） | `qwen-plus` | 阿里云百炼 DashScope | [rag_engine.py](file:///d:/softwarecup/backup/softwarecup/backend/core/rag_engine.py#L32) |
+| 多模态图文 LLM（图片问答） | `qwen-vl-plus` | 阿里云百炼 DashScope | [main.py](file:///d:/softwarecup/backup/softwarecup/backend/main.py#L346) |
+| Embedding 向量模型（RAG 检索用） | `text-embedding-v4` | 阿里云百炼 DashScope | [knowledge_base.py](file:///d:/softwarecup/backup/softwarecup/backend/core/knowledge_base.py#L156) |
+| ASR 语音识别 | `paraformer-small`（默认）/ `paraformer-large` / `sensevoice` | 本地 CPU（FunASR） | [asr_tts.py](file:///d:/softwarecup/backup/softwarecup/backend/core/asr_tts.py) |
+
+#### 模型切换
+
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `DASHSCOPE_API_KEY` | （必填） | DashScope API Key，上述三个云端模型共用 |
+| `RAG_MODEL` | `qwen-plus` | RAG 对话模型，可改 `qwen-turbo`（快）或 `qwen-max`（强） |
+| `ASR_MODEL` | `paraformer-small` | FunASR 预设，可选 `paraformer-large` 或 `sensevoice` |
+
+#### 替换 Embedding 模型注意事项
+
+Embedding 模型的向量维度在升级版本时会变化（如 v2 → v4），**替换模型后必须**：
+
+1. **重启后端进程**（让 Python 加载新的模型名称）
+2. **重建向量库**（管理后台 → 知识库 → "重新读入数据库"，或 `POST /api/admin/rebuild-index`）
+
+否则旧模型生成的向量和新模型的 query 向量空间不一致，会导致检索失败或结果完全错误，同时账单持续产生旧模型费用。
+
 ### 3. 启动服务
 
 ```powershell

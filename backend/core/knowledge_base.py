@@ -153,7 +153,7 @@ class KnowledgeBase:
         os.makedirs(self.data_dir, exist_ok=True)
 
         self.embeddings = DashScopeEmbeddings(
-            model="text-embedding-v2",
+            model="text-embedding-v4",
             dashscope_api_key=os.getenv("DASHSCOPE_API_KEY"),
         )
 

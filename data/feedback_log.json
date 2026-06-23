@@ -161,5 +161,12 @@
     "rating": 4,
     "stars": 4,
     "category": "good"
+  },
+  {
+    "timestamp": 1782229384.0833533,
+    "date": "2026-06-23",
+    "rating": 2,
+    "stars": 2,
+    "category": "bad"
   }
 ]

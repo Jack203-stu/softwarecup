@@ -205,6 +205,25 @@ html,body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;height:100%;ove
 .pane-side .fb-row .fb-thanks{flex:1;text-align:center;color:#6effa0;font-size:11px;letter-spacing:2px}
 .pane-side .fb-row .fb-label{font-size:10px;color:rgba(155,190,230,.7);letter-spacing:1px;min-width:36px;text-align:center}
 
+.pane-side .interest-card .sc-body{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pane-side .interest-chip{
+    padding:3px 6px;border-radius:10px;font-size:10px;letter-spacing:.2px;cursor:pointer;user-select:none;text-align:center;
+    color:#bcd4ef;
+    background:rgba(0,60,120,.18);border:1px solid rgba(0,180,255,.18);
+    transition:.2s;line-height:1.5}
+.pane-side .interest-chip:hover{background:rgba(0,180,255,.12);color:#eaf6ff;border-color:rgba(0,234,255,.45)}
+.pane-side .interest-chip.on{
+    color:#00eaff;
+    background:rgba(0,180,255,.18);border:1px solid rgba(0,234,255,.55);
+    box-shadow:0 0 10px rgba(0,234,255,.25),inset 0 0 0 1px rgba(0,234,255,.18)}
+.pane-side .interest-chip .ic-emoji{margin-right:2px;font-size:11px}
+.pane-side .interest-note{font-size:10px;color:rgba(155,190,230,.65);letter-spacing:1px;margin-top:8px}
+.pane-side .interest-tags-bar{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.pane-side .interest-tags-bar .tag-mini{
+    font-size:10px;padding:1px 6px;border-radius:8px;margin:0;cursor:pointer;
+    color:#bcd4ef;background:rgba(0,60,120,.18);border:1px solid rgba(0,180,255,.2)}
+.pane-side .interest-tags-bar .tag-mini.off{color:rgba(155,190,230,.5);text-decoration:line-through}
+
 .ribbon{position:absolute;left:10px;right:10px;bottom:10px;width:auto;z-index:50;pointer-events:none}
 .ribbon .ribbon-glass{position:relative;pointer-events:auto;display:flex;align-items:center;gap:12px;padding:11px 14px 11px 64px;border-radius:14px;
     background:rgba(10,24,48,.62);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
@@ -354,6 +373,13 @@ html,body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;height:100%;ove
                 </div>
                 <span class="fb-label">好</span>
             </div>
+        </div>
+        <div class="side-card interest-card">
+            <div class="sc-title">兴趣偏好</div>
+            <div style="font-size:11px;color:#6ea5d6;letter-spacing:1px">告诉我您的兴趣，小灵更懂您 ✦</div>
+            <div class="sc-body" style="margin-top:8px" id="interestChips"></div>
+            <div class="interest-tags-bar" id="interestTagsBar" style="display:none"></div>
+            <div class="interest-note" id="interestNote">可多选 · 不选则按通用偏好回答</div>
         </div>
     </div>
 </div>
@@ -528,6 +554,111 @@ function restoreSVG(){
   document.getElementById('nameDisplay').style.display='none';
 }
 
+var INTEREST_OPTIONS = [
+  {key:'history',      label:'历史',     emoji:'📜'},
+  {key:'nature',       label:'自然风光', emoji:'🌿'},
+  {key:'buddhism',     label:'佛教文化', emoji:'☸️'},
+  {key:'food',         label:'美食',     emoji:'🍜'},
+  {key:'architecture', label:'建筑艺术', emoji:'🏛️'},
+  {key:'leisure',      label:'休闲旅游', emoji:'🧳'}
+];
+var INTEREST_LABEL_MAP = {};
+INTEREST_OPTIONS.forEach(function(o){INTEREST_LABEL_MAP[o.key]=o.label;});
+
+function _loadInterestTags(){
+  try{
+    var raw = localStorage.getItem('interestTags');
+    if(!raw)return [];
+    var arr = JSON.parse(raw);
+    if(Array.isArray(arr))return arr.filter(function(k){return INTEREST_LABEL_MAP[k];});
+    return [];
+  }catch(e){return [];}
+}
+function _saveInterestTags(arr){
+  try{localStorage.setItem('interestTags', JSON.stringify(arr||[]));}catch(e){}
+}
+function _getInterestLabelText(){
+  var arr = _loadInterestTags();
+  if(!arr.length)return '';
+  return arr.map(function(k){return INTEREST_LABEL_MAP[k];}).join('、');
+}
+function initInterestChips(){
+  var wrap = document.getElementById('interestChips');
+  if(!wrap)return;
+  wrap.innerHTML = '';
+  INTEREST_OPTIONS.forEach(function(opt){
+    var el = document.createElement('span');
+    el.className = 'interest-chip';
+    el.dataset.key = opt.key;
+    el.innerHTML = '<span class="ic-emoji">'+opt.emoji+'</span>'+opt.label;
+    el.addEventListener('click', function(){
+      var arr = _loadInterestTags();
+      var idx = arr.indexOf(opt.key);
+      if(idx >= 0){arr.splice(idx,1);}else{arr.push(opt.key);}
+      _saveInterestTags(arr);
+      _renderInterestChips();
+      _updateInterestBar();
+    });
+    wrap.appendChild(el);
+  });
+  _renderInterestChips();
+  _updateInterestBar();
+}
+function _renderInterestChips(){
+  var arr = _loadInterestTags();
+  var chips = document.querySelectorAll('#interestChips .interest-chip');
+  for(var i=0;i<chips.length;i++){
+    var k = chips[i].dataset.key;
+    if(arr.indexOf(k)>=0)chips[i].classList.add('on');
+    else chips[i].classList.remove('on');
+  }
+}
+function _updateInterestBar(){
+  var bar = document.getElementById('interestTagsBar');
+  var note = document.getElementById('interestNote');
+  if(!bar)return;
+  var arr = _loadInterestTags();
+  if(!arr.length){
+    bar.style.display='none';
+    note.textContent = '可多选 · 不选则按通用偏好回答';
+    return;
+  }
+  bar.style.display='flex';
+  bar.innerHTML = '';
+  var title = document.createElement('span');
+  title.style.cssText='font-size:10px;color:rgba(155,190,230,.7);letter-spacing:1px;margin-right:4px';
+  title.textContent='当前兴趣：';
+  bar.appendChild(title);
+  arr.forEach(function(k){
+    var mini = document.createElement('span');
+    mini.className='tag-mini';
+    mini.innerHTML = INTEREST_OPTIONS.filter(function(o){return o.key===k;}).map(function(o){return o.emoji+' ';}).join('') + INTEREST_LABEL_MAP[k] + ' ✕';
+    mini.title='点击移除';
+    mini.addEventListener('click', function(){
+      var tags = _loadInterestTags();
+      var idx = tags.indexOf(k);
+      if(idx>=0){tags.splice(idx,1);}
+      _saveInterestTags(tags);
+      _renderInterestChips();
+      _updateInterestBar();
+    });
+    bar.appendChild(mini);
+  });
+  note.textContent = '💡 提问会自动加入"游客兴趣：'+_getInterestLabelText()+'"作为前提供您的专属回答';
+}
+
+function _interestKeyToLabel(k){
+  var map = {
+    history:'历史',nature:'自然风光',buddhism:'佛教文化',
+    food:'美食',architecture:'建筑艺术',leisure:'休闲旅游'
+  };
+  return map[k]||k;
+}
+function _interestKeysToLabels(arr){
+  if(!arr||!arr.length)return [];
+  return arr.map(_interestKeyToLabel);
+}
+
 function sendMessage(){
   var input=document.getElementById('inputBox');
   var text=input.value.trim();
@@ -539,8 +670,15 @@ function sendMessage(){
   }
   if(!text)return;
   input.value='';
-  addMessage('user',text);
-  getAIReply(text);
+  var keys = _loadInterestTags();
+  var labels = _interestKeysToLabels(keys);
+  var tagText = labels.join('、');
+  if(tagText){
+    addMessage('user', text, '🎯 兴趣：'+tagText);
+  }else{
+    addMessage('user', text);
+  }
+  getAIReply(text, keys);
 }
 function sendQuick(text){
   if(pendingVisionFile){
@@ -565,13 +703,17 @@ function addMessage(role,text,emotionTag){
   msgs.scrollTop=msgs.scrollHeight;
 }
 
-async function getAIReply(question){
+async function getAIReply(question, tags){
   var typing=document.getElementById('typing');
   typing.classList.add('show');
+  var body = { text: question, voice: currentVoice };
+  if(tags && tags.length){
+    body.tags = tags;
+  }
   try{
     var res=await fetch('/api/chat/tts',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ text: question, voice: currentVoice })
+      body: JSON.stringify(body)
     });
     var data=await res.json();
     typing.classList.remove('show');
@@ -928,6 +1070,7 @@ async function sendVisionMessage(question){
 
 var loadingStartTime=Date.now();
 window.onload=function(){
+  initInterestChips();
   loadModelsConfig();
   fetch('/api/visit');
 };

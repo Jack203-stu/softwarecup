@@ -65,8 +65,14 @@ class RAGEngine:
     def _cache_key(self, text: str) -> str:
         return hashlib.md5(text.strip().lower().encode("utf-8")).hexdigest()
 
-    def answer(self, user_query: str) -> dict:
-        ck = self._cache_key(user_query)
+    def _answer_cache_key(self, text: str, tags=None) -> str:
+        base = text.strip().lower()
+        if tags:
+            base = base + "||tags=" + ",".join(sorted(tags))
+        return hashlib.md5(base.encode("utf-8")).hexdigest()
+
+    def answer(self, user_query: str, tags=None) -> dict:
+        ck = self._answer_cache_key(user_query, tags)
         with self._cache_lock:
             if ck in self._answer_cache:
                 return self._answer_cache[ck]
@@ -77,7 +83,16 @@ class RAGEngine:
 
         context = "\n\n".join([f"[来源: {d['source']}]\n{d['content']}" for d in retrieved_docs])
 
-        # 没有任何资料 → 直接返回固定回复，不调 LLM
+        system_prompt = self.system_prompt
+        if tags:
+            tag_list = [t for t in tags if isinstance(t, str) and t.strip()]
+            if tag_list:
+                system_prompt = self.system_prompt + (
+                    "\n5. 游客兴趣标签：" + "、".join(tag_list) +
+                    "。请在回答时适当结合这些兴趣维度组织内容，优先回答游客感兴趣的部分，"
+                    "并可在合适之处点名提及'您可能也会喜欢…'这类贴合兴趣的引导语。"
+                )
+
         if not retrieved_docs:
             result = {
                 "question": user_query,
@@ -94,7 +109,7 @@ class RAGEngine:
         llm_start = time.time()
         try:
             resp = self._http_call([
-                {"role": "system", "content": self.system_prompt},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"【参考资料】\n{context}\n\n【用户问题】\n{user_query}"}
             ])
             answer = resp["choices"][0]["message"]["content"]
@@ -105,7 +120,7 @@ class RAGEngine:
 
         sources = list(set([d['source'] for d in retrieved_docs]))
 
-        print(f"  [RAG] model={self.model} search={search_time:.2f}s llm={llm_time:.2f}s")
+        print(f"  [RAG] model={self.model} search={search_time:.2f}s llm={llm_time:.2f}s tags={tags or []}")
 
         result = {
             "question": user_query,
