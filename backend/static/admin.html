@@ -115,6 +115,26 @@ body{background:
         .bar span{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:10px;color:#00eaff;font-family:"Consolas",monospace}
         .bar .label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:9px;color:#4f7aa4}
 
+        .wc-cloud{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;align-content:center;padding:4px 0}
+        .wc-cloud .wc-word{
+            display:inline-block;padding:6px 14px;border-radius:20px;cursor:default;user-select:none;letter-spacing:1px;
+            transition:transform .25s,text-shadow .25s,box-shadow .25s,background .25s,color .25s;border:1px solid transparent}
+        .wc-cloud .wc-word:hover{transform:translateY(-2px) scale(1.08)}
+        .wc-cloud .wc-word.rank-1{color:#ffae00;background:rgba(255,174,0,.12);border-color:rgba(255,174,0,.45);text-shadow:0 0 14px rgba(255,174,0,.55);font-size:22px;font-weight:800}
+        .wc-cloud .wc-word.rank-2{color:#ff8a3d;background:rgba(255,138,61,.10);border-color:rgba(255,138,61,.38);text-shadow:0 0 10px rgba(255,138,61,.45);font-size:20px;font-weight:700}
+        .wc-cloud .wc-word.rank-3{color:#00eaff;background:rgba(0,234,255,.11);border-color:rgba(0,234,255,.42);text-shadow:0 0 12px rgba(0,234,255,.55);font-size:18px;font-weight:700}
+        .wc-cloud .wc-word.rank-4{color:#5fb0ff;background:rgba(95,176,255,.09);border-color:rgba(95,176,255,.32);font-size:16px;font-weight:600}
+        .wc-cloud .wc-word.rank-5{color:#8cc5ff;background:rgba(140,197,255,.08);border-color:rgba(140,197,255,.28);font-size:15px;font-weight:600}
+        .wc-cloud .wc-word.rank-6{color:#9cd3ff;background:rgba(156,211,255,.07);border-color:rgba(156,211,255,.22);font-size:14px;font-weight:600}
+        .wc-cloud .wc-word.rank-7{color:#aedaff;background:rgba(174,218,255,.06);border-color:rgba(174,218,255,.18);font-size:14px}
+        .wc-cloud .wc-word.rank-8{color:#bcd4ef;background:rgba(188,212,239,.05);border-color:rgba(188,212,239,.15);font-size:13px}
+        .wc-cloud .wc-word.rank-9{color:#c9dcf2;background:rgba(201,220,242,.05);border-color:rgba(201,220,242,.12);font-size:13px}
+        .wc-cloud .wc-word.rank-10{color:#d5e3f5;background:rgba(213,227,245,.04);border-color:rgba(213,227,245,.10);font-size:12px}
+        .wc-total{font-family:"Consolas",monospace;color:#00eaff;font-size:32px;font-weight:bold;line-height:1}
+        .wc-total-label{font-size:12px;color:#6ea5d6;letter-spacing:2px;margin-top:4px}
+        .wc-refresh{font-size:12px;color:#9cd3ff;letter-spacing:2px;background:rgba(0,60,130,.35);border:1px solid rgba(0,180,255,.35);padding:6px 14px;border-radius:6px;cursor:pointer;transition:.2s;font-weight:600}
+        .wc-refresh:hover{background:rgba(0,180,255,.18);color:#00eaff;border-color:#00eaff;box-shadow:0 0 12px rgba(0,234,255,.35)}
+
         /* 非驾驶舱页面 */
         .page{display:none}
         .page.active{display:block}
@@ -263,6 +283,25 @@ body{background:
 
 <div class="alt-page page" id="page-history">
     <div class="page-title">交互历史</div>
+
+    <div class="cp-panel" style="margin-bottom:16px">
+        <div class="cp-title">TOP · 热词云</div>
+        <div style="display:flex;gap:16px;align-items:center">
+            <div style="flex:0 0 auto">
+                <div style="position:relative;border:1px solid rgba(0,180,255,.2);border-radius:6px;background:radial-gradient(ellipse at center,rgba(0,60,130,.25) 0%,rgba(0,20,50,.15) 100%);overflow:hidden">
+                    <canvas id="wcCanvas" style="display:block"></canvas>
+                    <div id="wcTip" style="position:absolute;pointer-events:none;font-size:12px;color:#00eaff;background:rgba(5,18,38,.92);border:1px solid rgba(0,180,255,.4);border-radius:4px;padding:4px 10px;display:none;text-shadow:0 0 8px rgba(0,234,255,.3);letter-spacing:1px"></div>
+                </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;min-width:170px;padding-left:14px;border-left:1px dashed rgba(0,180,255,.25)">
+                <div><div class="wc-total" id="wcTotal">-</div><div class="wc-total-label">累计交互词数</div></div>
+                <button class="wc-refresh" onclick="refreshWordCloud()">↻ 刷新词云</button>
+                <div id="wcLegends" style="font-size:12px;color:#6ea5d6;line-height:1.9"></div>
+                <div style="font-size:11px;color:#5f9acb;letter-spacing:1px;margin-top:2px">基于全部交互日志 · Top15</div>
+            </div>
+        </div>
+    </div>
+
     <div class="cp-panel" style="padding:0"><div id="historyList" style="max-height:560px;overflow-y:auto;padding:14px"></div></div>
 </div>
 
@@ -588,7 +627,7 @@ function showPage(name, pillEl){
         pages.forEach(function(p){ p.style.display='none'; });
         var pg=document.getElementById('page-'+name);
         if(pg){ pg.style.display='block'; pg.classList.add('active'); }
-        if(name==='history') loadHistory();
+        if(name==='history'){ loadHistory(); refreshWordCloud(); }
         if(name==='feedbacks') loadFeedbacks();
         if(name==='knowledge') loadDocuments();
         if(name==='models') loadModels();
@@ -1101,6 +1140,147 @@ function showToast(msg,type){
 setTimeout(function(){document.getElementById('app-loading').style.opacity='0';setTimeout(function(){document.getElementById('app-loading').remove()},500)},500);
 loadDashboard();
 setInterval(loadDashboard,10000);
+setInterval(function(){
+    var cockpit=document.getElementById('cockpitMain');
+    if(cockpit && cockpit.style.display!=='none') refreshWordCloud();
+},15000);
+
+// ===== TOP15 可视化词云（Canvas 自绘，环形由中心向外填充） =====
+const WC_PALETTE=['#ffae00','#ff8a3d','#00eaff','#5fb0ff','#8cc5ff','#9cd3ff','#aedaff','#bcd4ef','#c9dcf2','#d5e3f5'];
+const WC_MOCK=[
+    {word:'灵山大佛',count:48},{word:'梵宫',count:38},{word:'九龙灌浴',count:32},
+    {word:'五印坛城',count:26},{word:'门票',count:22},{word:'开放时间',count:20},
+    {word:'游览路线',count:18},{word:'历史',count:15},{word:'佛教',count:14},
+    {word:'建筑艺术',count:12},{word:'美食',count:10},{word:'夜景',count:9}
+];
+async function refreshWordCloud(){
+    var cloudTitle=document.getElementById('wcTotal');
+    if(!cloudTitle) return;
+    var words=null;
+    try{
+        var res=await fetch('/api/admin/wordcloud?top=15');
+        if(res.ok){
+            var data=await res.json();
+            words=(data.words||[]).slice(0,15);
+        }
+    }catch(err){
+        console.warn('[wordcloud fetch fail, using mock]',err);
+    }
+    if(!words||words.length===0){
+        words=WC_MOCK.slice(0,15);
+    }
+    cloudTitle.textContent=words.reduce(function(s,w){return s+(w.count||0);},0);
+    drawWordCloud(words);
+    var leg=document.getElementById('wcLegends');
+    leg.innerHTML=words.slice(0,6).map(function(w,i){
+        return '<span style="color:'+WC_PALETTE[i%WC_PALETTE.length]+';font-weight:'+(i<3?'700':'600')+'">●</span> '+w.word+' '+w.count;
+    }).join('<br>');
+}
+
+function drawWordCloud(rawWords){
+    var canvas=document.getElementById('wcCanvas');
+    if(!canvas) return;
+    var W=460, H=240;
+    var dpr=window.devicePixelRatio||1;
+    canvas.width=W*dpr; canvas.height=H*dpr;
+    canvas.style.width=W+'px'; canvas.style.height=H+'px';
+    var ctx=canvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,W,H);
+
+    var dummies=[];
+    var counts=rawWords.map(function(w){return w.count||1;});
+    var maxC=Math.max.apply(null,counts), minC=Math.min.apply(null,counts);
+    for(var i=0;i<rawWords.length;i++){
+        var norm=(rawWords[i].count-minC)/Math.max(1,maxC-minC);
+        var size=Math.round(12+18*Math.pow(norm,0.55));
+        var rotate=Math.random()<0.3?(Math.random()<0.5?-12:12):0;
+        if(Math.random()<0.08) rotate=Math.random()<0.5?-25:25;
+        var mw=measureText(ctx, rawWords[i].word, size, rotate);
+        dummies.push({word:rawWords[i].word, size:size, rotate:rotate, count:rawWords[i].count, placed:false, x:0, y:0, box:mw});
+    }
+    dummies.sort(function(a,b){return b.size-a.size;});
+
+    var placedBoxes=[];
+    var Cx=W/2, Cy=H/2;
+    var rStep=2.2, angStep=0.12;
+
+    for(var i=0;i<dummies.length;i++){
+        var d=dummies[i];
+        var mw=measureText(ctx,d.word,d.size,d.rotate);
+        d.box=mw;
+        var placed=false;
+        for(var r=0;!placed && r<Math.min(W,H)/2-10;r+=rStep){
+            for(var a=0;!placed && a<Math.PI*2+0.01;a+=angStep){
+                var bx=Math.round(Cx+r*Math.cos(a)-mw.w/2);
+                var by=Math.round(Cy+r*Math.sin(a)-mw.h/2);
+                if(bx<3||by<3||bx+mw.w>W-3||by+mw.h>H-3) continue;
+                var ok=true;
+                for(var j=0;ok && j<placedBoxes.length;j++){
+                    var pb=placedBoxes[j];
+                    if(bx+mw.w>pb.x && pb.x+pb.w>bx && by+mw.h>pb.y && pb.y+pb.h>by) ok=false;
+                }
+                if(ok){
+                    d.x=bx; d.y=by; d.placed=true; placedBoxes.push({x:bx,y:by,w:mw.w,h:mw.h}); placed=true;
+                }
+            }
+        }
+    }
+
+    for(var i=0;i<dummies.length;i++){
+        var d=dummies[i];
+        if(!d.placed) continue;
+        var col=WC_PALETTE[i%WC_PALETTE.length];
+        ctx.save();
+        ctx.translate(d.x+d.box.w/2, d.y+d.box.h/2);
+        if(d.rotate) ctx.rotate(Math.PI*d.rotate/180);
+        ctx.font='bold '+d.size+'px "Microsoft YaHei","PingFang SC",sans-serif';
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        if(i<3){ ctx.shadowColor=col; ctx.shadowBlur=14; }
+        else if(i<7){ ctx.shadowColor=col; ctx.shadowBlur=8; }
+        ctx.fillStyle=col;
+        ctx.fillText(d.word,0,0);
+        ctx.restore();
+    }
+
+    canvas.onmousemove=function(e){
+        var rect=canvas.getBoundingClientRect();
+        var cx=(e.clientX-rect.left)*(W/rect.width);
+        var cy=(e.clientY-rect.top)*(H/rect.height);
+        var tip=document.getElementById('wcTip');
+        var hit=null;
+        for(var i=0;i<dummies.length;i++){
+            var d=dummies[i];
+            if(!d.placed) continue;
+            if(cx>=d.x && cx<=d.x+d.box.w && cy>=d.y && cy<=d.y+d.box.h){hit=d; break;}
+        }
+        if(hit){
+            tip.style.display='block';
+            tip.textContent=hit.word+'  出现 '+hit.count+' 次';
+            tip.style.left=Math.min(e.clientX-rect.left+10, rect.width-220)+'px';
+            tip.style.top=Math.min(e.clientY-rect.top-26, rect.height-30)+'px';
+            canvas.style.cursor='pointer';
+        }else{ tip.style.display='none'; canvas.style.cursor='default'; }
+    };
+    canvas.onmouseleave=function(){
+        document.getElementById('wcTip').style.display='none';
+        canvas.style.cursor='default';
+    };
+}
+
+function measureText(ctx, word, size, rotate){
+    ctx.font='bold '+size+'px "Microsoft YaHei","PingFang SC",sans-serif';
+    var m=ctx.measureText(word);
+    var W=m.width+8, H=Math.round(size*1.18)+6;
+    if(rotate){
+        var a=Math.PI*rotate/180, c=Math.cos(a), s=Math.sin(a);
+        var nw=Math.abs(W*c)+Math.abs(H*s);
+        var nh=Math.abs(W*s)+Math.abs(H*c);
+        W=Math.round(nw)+2; H=Math.round(nh)+2;
+    }
+    return {w:W, h:H};
+}
+
 </script>
 </body>
 </html>

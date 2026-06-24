@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理后台 · 灵山胜境</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei",sans-serif;background:#0a0e17;color:#c0c8d8;min-height:100vh;display:flex}
+.sidebar{width:220px;background:#111827;border-right:1px solid #1f2937;padding:20px 0;min-height:100vh}
+.sidebar .logo{text-align:center;padding:20px;font-size:20px;font-weight:bold;background:linear-gradient(135deg,#f5af19,#f12711);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-item{padding:14px 24px;cursor:pointer;color:#9ca3af;border-left:3px solid transparent;transition:.3s;display:flex;align-items:center;gap:10px}
+.nav-item:hover,.nav-item.active{background:rgba(255,215,0,.05);color:#FFD700;border-left-color:#FFD700}
+.main{flex:1;padding:30px}
+.page-title{font-size:24px;font-weight:bold;margin-bottom:24px;color:#fff}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:30px}
+.stat-card{background:linear-gradient(135deg,#1a1f2e,#1f2937);border-radius:16px;padding:24px;border:1px solid #2a3347}
+.stat-card .label{font-size:13px;color:#9ca3af;margin-bottom:8px}
+.stat-card .value{font-size:36px;font-weight:bold;color:#FFD700}
+.stat-card .sub{font-size:12px;color:#6b7280;margin-top:4px}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.chart-card{background:#111827;border-radius:16px;padding:24px;border:1px solid #1f2937}
+.chart-card h3{font-size:16px;color:#e5e7eb;margin-bottom:16px}
+.hot-item{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #1f2937}
+.hot-item .rank{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:bold;background:#1f2937;color:#9ca3af}
+.hot-item .rank.top1{background:#FFD700;color:#1a1a2e}
+.hot-item .rank.top2{background:#c0c0c0;color:#1a1a2e}
+.hot-item .rank.top3{background:#cd7f32;color:#1a1a2e}
+.hot-item .q-text{flex:1;margin-left:12px;font-size:14px}
+.hot-item .q-count{color:#FFD700;font-weight:bold}
+.sentiment-bar{height:8px;border-radius:4px;background:#1f2937;margin-top:8px;overflow:hidden}
+.sentiment-bar .fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#f12711,#f5af19,#00ff88)}
+.page{display:none}
+.page.active{display:block}
+.file-list{background:#111827;border-radius:12px;border:1px solid #1f2937}
+.file-item{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #1f2937}
+.file-item:last-child{border-bottom:none}
+.tag{padding:4px 10px;border-radius:12px;font-size:11px;background:rgba(0,255,136,.1);color:#00ff88}
+.official-file{background:#1f2937;border-left:3px solid #FFD700}
+.official-file .file-name{color:#FFD700}
+button{cursor:pointer}
+.modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;justify-content:center;align-items:center}
+.modal-content{background:#1a1f2e;border-radius:16px;padding:24px;max-width:800px;max-height:80vh;overflow:auto;border:1px solid #FFD700}
+.modal-content pre{white-space:pre-wrap;word-wrap:break-word;color:#c0c8d8;font-family:monospace;font-size:14px}
+.modal-content textarea{width:100%;height:400px;background:#0a0e17;color:#c0c8d8;border:1px solid #1f2937;border-radius:8px;padding:12px;font-family:monospace;font-size:14px;resize:vertical}
+.close{cursor:pointer;float:right;font-size:24px;color:#FFD700}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="logo">🏯 灵山管理台</div>
+    <div class="nav-item active" onclick="showPage('dashboard')">📊 数据大屏</div>
+    <div class="nav-item" onclick="showPage('knowledge')">📚 知识库管理</div>
+    <div class="nav-item" onclick="showPage('report')">📈 游客报告</div>
+    <div class="nav-item" onclick="window.open('/')">💬 游客端</div>
+</div>
+
+<div class="main">
+    <!-- 数据大屏 -->
+    <div class="page active" id="page-dashboard">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+            <div class="page-title" style="margin-bottom:0">📊 运营数据大屏</div>
+            <button onclick="resetData()" style="background:#ef4444;color:#fff;border:none;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:14px">
+                🔄 重置数据
+            </button>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card"><div class="label">👥 今日服务人次</div><div class="value" id="statSessions">1,280</div><div class="sub" id="statSessionsSub">较昨日 ↑12%</div></div>
+            <div class="stat-card"><div class="label">💬 本周累计问答</div><div class="value" id="statQuestions">8,920</div><div class="sub" id="statQuestionsSub">日均 1,274 次</div></div>
+            <div class="stat-card"><div class="label">😊 游客满意度</div><div class="value" id="statSatisfaction">95.2<span style="font-size:18px">%</span></div><div class="sub" id="statSatisfactionSub">基于 3,280 条反馈</div></div>
+            <div class="stat-card"><div class="label">⚡ 平均响应</div><div class="value" id="statResponse">2.8<span style="font-size:18px">s</span></div><div class="sub" id="statResponseSub">P95: 4.2s</div></div>
+        </div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>🔥 热门问题 Top 5</h3>
+                <div id="hotQuestions">
+                    <div class="hot-item"><span class="rank top1">1</span><span class="q-text">灵山大佛有多高</span><span class="q-count">245次</span></div>
+                    <div class="hot-item"><span class="rank top2">2</span><span class="q-text">门票多少钱</span><span class="q-count">189次</span></div>
+                    <div class="hot-item"><span class="rank top3">3</span><span class="q-text">游览路线推荐</span><span class="q-count">156次</span></div>
+                    <div class="hot-item"><span class="rank">4</span><span class="q-text">灵山胜境在哪</span><span class="q-count">134次</span></div>
+                    <div class="hot-item"><span class="rank">5</span><span class="q-text">九龙灌浴表演时间</span><span class="q-count">98次</span></div>
+                </div>
+            </div>
+            <div class="chart-card"><h3>📈 一周问答趋势</h3>
+                <div id="weeklyTrend" style="display:flex;align-items:flex-end;gap:12px;height:180px;padding-top:20px">
+                    <div style="flex:1;text-align:center"><div style="background:linear-gradient(180deg,#FFD700,#B8860B);height:100px;border-radius:8px"></div><span style="font-size:11px;color:#9ca3af">周一</span></div>
+                    <div style="flex:1;text-align:center"><div style="background:linear-gradient(180deg,#FFD700,#B8860B);height:130px;border-radius:8px"></div><span style="font-size:11px;color:#9ca3af">周二</span></div>
+                    <div style="flex:1;text-align:center"><div style="background:linear-gradient(180deg,#FFD700,#B8860B);height:90px;border-radius:8px"></div><span style="font-size:11px;color:#9ca3af">周三</span></div>
+                    <div style="flex:1;text-align:center"><div style="background:linear-gradient(180deg,#FFD700,#B8860B);height:150px;border-radius:8px"></div><span style="font-size:11px;color:#9ca3af">周四</span></div>
+                    <div style="flex:1;text-align:center"><div style="background:linear-gradient(180deg,#FFD700,#B8860B);height:140px;border-radius:8px"></div><span style="font-size:11px;color:#9ca3af">周五</span></div>
+                    <div style="flex:1;text-align:center"><div style="background:linear-gradient(180deg,#FFD700,#B8860B);height:170px;border-radius:8px"></div><span style="font-size:11px;color:#9ca3af">周六</span></div>
+                    <div style="flex:1;text-align:center"><div style="background:linear-gradient(180deg,#FFD700,#B8860B);height:80px;border-radius:8px"></div><span style="font-size:11px;color:#9ca3af">周日</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 知识库管理 -->
+    <div class="page" id="page-knowledge">
+        <div class="page-title">📚 知识库文档管理</div>
+
+        <!-- 官方资料区（只读） -->
+        <div style="background:#1a1f2e;border-radius:16px;padding:20px;margin-bottom:24px;border:1px solid #FFD700">
+            <h3 style="color:#FFD700;margin-bottom:16px">📖 官方知识库（只读·不可修改）</h3>
+            <div id="officialFiles" class="file-list"></div>
+            <div style="margin-top:12px;font-size:12px;color:#6b7280">⚠️ 官方资料为基础知识库，不可删除或修改</div>
+        </div>
+
+        <!-- 用户上传区 -->
+        <div id="dropArea" style="border:2px dashed #FFD700;border-radius:16px;padding:30px;text-align:center;margin-bottom:20px;cursor:pointer">
+            <div style="font-size:40px;margin-bottom:10px">📁</div>
+            <p>拖拽文件到这里上传</p>
+            <div style="margin-top:15px;display:flex;gap:12px;justify-content:center">
+                <button id="l1" style="padding:8px 16px;border-radius:8px;background:#FFD700;color:#000;border:none;cursor:pointer">Level1 正式资料</button>
+                <button id="l2" style="padding:8px 16px;border-radius:8px;background:#333;color:#fff;border:none;cursor:pointer">Level2 轶闻趣事</button>
+            </div>
+        </div>
+
+        <div style="margin-top:20px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                <h3 style="color:#fff">📁 LEVEL1 文件（高优先级补充资料）</h3>
+                <button onclick="refreshKnowledge()" style="background:#3b82f6;color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:14px">
+                    🔄 刷新知识库
+                </button>
+            </div>
+            <div id="level1Files" class="file-list"></div>
+        </div>
+
+        <div style="margin-top:20px">
+            <h3 style="margin-bottom:10px;color:#fff">📁 LEVEL2 文件（轶闻趣事·话术包装）</h3>
+            <div id="level2Files" class="file-list"></div>
+        </div>
+    </div>
+
+    <!-- 报告页面 -->
+    <div class="page" id="page-report">
+        <div class="page-title">📈 游客感受度报告</div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>😊 情感分析</h3><div style="font-size:48px;text-align:center;color:#00ff88;padding:20px">92.5%</div><div style="text-align:center;color:#9ca3af">正面反馈占比</div><div class="sentiment-bar" style="margin-top:16px"><div class="fill" style="width:92.5%"></div></div></div>
+            <div class="chart-card"><h3>💡 服务优化建议</h3><div style="padding:12px;color:#c0c8d8;line-height:2">💬 增加夜间游览项目<br>🌍 多语言讲解需求上升<br>📱 小程序预约功能优化<br>🚌 观光车班次加密建议</div></div>
+        </div>
+    </div>
+</div>
+
+<!-- 预览模态框 -->
+<div id="previewModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <h3 id="modalTitle" style="color:#FFD700;margin-bottom:16px"></h3>
+        <pre id="modalContent"></pre>
+    </div>
+</div>
+
+<!-- 编辑模态框 -->
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeEditModal()">&times;</span>
+        <h3 id="editTitle" style="color:#FFD700;margin-bottom:16px">📝 编辑文件</h3>
+        <textarea id="editContent"></textarea>
+        <div style="margin-top:16px;display:flex;gap:12px;justify-content:flex-end">
+            <button onclick="closeEditModal()" style="background:#6b7280;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer">取消</button>
+            <button onclick="saveEdit()" id="saveEditBtn" style="background:#FFD700;color:#000;border:none;padding:8px 20px;border-radius:6px;cursor:pointer">💾 保存并刷新</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ========== 数据大屏加载 ==========
+let dashboardTimer = null;
+
+async function loadDashboard() {
+    try {
+        const res = await fetch('/api/stats/dashboard');
+        const data = await res.json();
+        
+        // 更新四个统计卡片
+        document.getElementById('statSessions').innerHTML = data.today_sessions;
+        document.getElementById('statQuestions').innerHTML = data.week_questions;
+        document.getElementById('statSatisfaction').innerHTML = data.satisfaction_rate + '<span style="font-size:18px">%</span>';
+        document.getElementById('statResponse').innerHTML = data.avg_response_time + '<span style="font-size:18px">s</span>';
+        
+        // 更新热门问题
+        const hotContainer = document.getElementById('hotQuestions');
+        const rankClasses = ['top1', 'top2', 'top3', '', ''];
+        hotContainer.innerHTML = data.hot_questions.map((q, i) => `
+            <div class="hot-item">
+                <span class="rank ${rankClasses[i] || ''}">${i + 1}</span>
+                <span class="q-text">${q.question}</span>
+                <span class="q-count">${q.count}次</span>
+            </div>
+        `).join('');
+        
+        // 更新一周趋势
+        const trendContainer = document.getElementById('weeklyTrend');
+        const maxVal = Math.max(...data.weekly_trend, 1);
+        const days = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+        trendContainer.innerHTML = data.weekly_trend.map((val, i) => {
+            const height = Math.max((val / maxVal) * 150, 10);
+            return `
+                <div style="flex:1;text-align:center">
+                    <div style="background:linear-gradient(180deg,#FFD700,#B8860B);height:${height}px;border-radius:8px;transition:height 0.5s"></div>
+                    <span style="font-size:11px;color:#9ca3af">${days[i]}</span>
+                </div>
+            `;
+        }).join('');
+        
+    } catch (e) {
+        console.log('[数据大屏] 加载失败:', e);
+    }
+}
+
+// ========== 重置数据 ==========
+async function resetData() {
+    if (!confirm('确定要重置所有统计数据吗？将回到基底数据。')) return;
+    try {
+        const res = await fetch('/api/stats/reset', {method: 'POST'});
+        const data = await res.json();
+        if (data.status === 'ok') {
+            alert('✅ 数据已重置到基底');
+            loadDashboard();
+        } else {
+            alert('❌ 重置失败');
+        }
+    } catch (e) {
+        alert('❌ 重置失败: ' + e.message);
+    }
+}
+
+// ========== 页面切换 ==========
+function showPage(name){
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.getElementById('page-'+name).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    event.target.closest('.nav-item').classList.add('active');
+    
+    if(name === 'knowledge'){
+        loadOfficialFiles();
+        loadFileList();
+    }
+    if(name === 'dashboard'){
+        loadDashboard();
+        // 每10秒刷新
+        if (dashboardTimer) clearInterval(dashboardTimer);
+        dashboardTimer = setInterval(loadDashboard, 10000);
+    } else {
+        if (dashboardTimer) {
+            clearInterval(dashboardTimer);
+            dashboardTimer = null;
+        }
+    }
+}
+
+// ========== 知识库管理 ==========
+let currentLevel = "level1";
+function switchLevel(l){
+    currentLevel = l;
+    document.getElementById("l1").style.background = l==="level1"?"#FFD700":"#333";
+    document.getElementById("l2").style.background = l==="level2"?"#FFD700":"#333";
+}
+document.getElementById("l1").onclick = ()=>switchLevel("level1");
+document.getElementById("l2").onclick = ()=>switchLevel("level2");
+
+// 加载官方文件列表
+async function loadOfficialFiles(){
+    let res = await fetch("/api/admin/official-files");
+    let data = await res.json();
+    document.getElementById("officialFiles").innerHTML = data.files.map(f=>`
+    <div class="file-item official-file">
+        <div><span class="file-name">📖 ${f.name}</span> <span style="font-size:11px;color:#6b7280">(${(f.size/1024).toFixed(1)} KB)</span></div>
+        <button onclick="previewOfficial('${f.name}')" style="background:#3b82f6;color:#fff;border:none;padding:5px 10px;border-radius:6px;cursor:pointer">预览</button>
+    </div>
+    `).join("");
+}
+
+// 预览官方文件
+async function previewOfficial(filename){
+    let res = await fetch(`/api/admin/official-files/${encodeURIComponent(filename)}`);
+    let data = await res.json();
+    document.getElementById("modalTitle").innerText = filename;
+    document.getElementById("modalContent").innerText = data.content;
+    document.getElementById("previewModal").style.display = "flex";
+}
+
+function closeModal(){
+    document.getElementById("previewModal").style.display = "none";
+}
+
+async function loadFileList(){
+    let res = await fetch("/api/files/list");
+    let data = await res.json();
+    document.getElementById("level1Files").innerHTML = (data.level1 || []).map(f=>`
+    <div class="file-item">
+        <div>📄 ${f}</div>
+        <div style="display:flex;gap:8px">
+            <button onclick="editFile('level1','${encodeURIComponent(f)}')" style="background:#3b82f6;color:#fff;border:none;padding:5px 10px;border-radius:6px;cursor:pointer">✏️ 编辑</button>
+            <button onclick="del('level1','${encodeURIComponent(f)}')" style="background:#ef4444;color:#fff;border:none;padding:5px 10px;border-radius:6px;cursor:pointer">删除</button>
+        </div>
+    </div>
+    `).join("");
+    document.getElementById("level2Files").innerHTML = (data.level2 || []).map(f=>`
+    <div class="file-item">
+        <div>📄 ${f}</div>
+        <div style="display:flex;gap:8px">
+            <button onclick="editFile('level2','${encodeURIComponent(f)}')" style="background:#3b82f6;color:#fff;border:none;padding:5px 10px;border-radius:6px;cursor:pointer">✏️ 编辑</button>
+            <button onclick="del('level2','${encodeURIComponent(f)}')" style="background:#ef4444;color:#fff;border:none;padding:5px 10px;border-radius:6px;cursor:pointer">删除</button>
+        </div>
+    </div>
+    `).join("");
+}
+
+async function del(level,fname){
+    if(!confirm("确定删除？")) return;
+    let res = await fetch(`/api/delete/${level}/${fname}`,{method:"DELETE"});
+    let result = await res.json();
+    if(result.status === "ok"){
+        loadFileList();
+        await fetch("/api/admin/refresh-knowledge", {method: "POST"});
+    } else {
+        alert("删除失败：" + (result.message || "未知错误"));
+    }
+}
+
+// 打开编辑模态框
+async function editFile(level, encodedFilename){
+    let filename = decodeURIComponent(encodedFilename);
+    editLevel = level;
+    editFilename = filename;
+    
+    document.getElementById("editTitle").innerText = `📝 编辑 ${level}/${filename}`;
+    document.getElementById("editContent").value = "加载中...";
+    document.getElementById("editModal").style.display = "flex";
+    
+    try {
+        let res = await fetch(`/api/file-content/${level}/${encodedFilename}`);
+        let data = await res.json();
+        if(data.status === "ok"){
+            document.getElementById("editContent").value = data.content;
+        } else {
+            document.getElementById("editContent").value = "❌ 加载失败：" + (data.message || "未知错误");
+        }
+    } catch(e){
+        document.getElementById("editContent").value = "❌ 加载失败：" + e.message;
+    }
+}
+
+function closeEditModal(){
+    document.getElementById("editModal").style.display = "none";
+}
+
+async function saveEdit(){
+    let btn = document.getElementById("saveEditBtn");
+    let originalText = btn.innerText;
+    btn.innerText = "⏳ 保存中...";
+    btn.disabled = true;
+    
+    let content = document.getElementById("editContent").value;
+    
+    try {
+        let res = await fetch(`/api/file-content/${editLevel}/${encodeURIComponent(editFilename)}`, {
+            method: "PUT",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({content: content})
+        });
+        let data = await res.json();
+        if(data.status === "ok"){
+            alert("✅ 文件保存成功！正在刷新知识库...");
+            await fetch("/api/admin/refresh-knowledge", {method: "POST"});
+            closeEditModal();
+            loadFileList();
+            alert("✅ 知识库已刷新，AI 将使用最新内容！");
+        } else {
+            alert("❌ 保存失败：" + (data.message || "未知错误"));
+        }
+    } catch(e){
+        alert("❌ 保存失败：" + e.message);
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
+
+async function refreshKnowledge(){
+    if(!confirm("确定要刷新知识库吗？这将重新读取 LEVEL1 和 LEVEL2 的所有文件。")) return;
+    
+    let btn = event.target;
+    let originalText = btn.innerText;
+    btn.innerText = "⏳ 刷新中...";
+    btn.disabled = true;
+    
+    try {
+        let res = await fetch("/api/admin/refresh-knowledge", {method: "POST"});
+        let data = await res.json();
+        if(data.status === "ok"){
+            alert("✅ 知识库刷新成功！下次问答将使用最新文件内容。");
+            loadFileList();
+        } else {
+            alert("❌ 刷新失败：" + (data.message || "未知错误"));
+        }
+    } catch(e){
+        alert("❌ 刷新失败：" + e.message);
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
+
+document.getElementById("dropArea").ondragover = (e)=>e.preventDefault();
+document.getElementById("dropArea").ondrop = async (e)=>{
+    e.preventDefault();
+    let files = e.dataTransfer.files;
+    for(let f of files){
+        let fd = new FormData();
+        fd.append("file",f);
+        await fetch("/api/upload/"+currentLevel,{method:"POST",body:fd});
+    }
+    loadFileList();
+};
+
+// ========== 页面加载时初始化 ==========
+// 默认加载数据大屏
+loadDashboard();
+// 每10秒刷新
+dashboardTimer = setInterval(loadDashboard, 10000);
+</script>
+
+</body>
+</html>

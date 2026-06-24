@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>灵山胜境 · AI导游小灵</title>
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+        background-color: #F5F7FA;
+        color: #111827;
+        min-height: 100vh;
+        position: relative;
+        overflow-x: hidden;
+    }
+
+    /* 数字人放在背景左侧，不遮挡、不占布局、无外框 */
+    .avatar-bg {
+        position: fixed;
+        left: 40px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 0;
+        pointer-events: none;
+        opacity: 0.9;
+    }
+
+    /* 顶部导航 */
+    .top-bar {
+        width: 100%;
+        background: #ffffff;
+        border-bottom: 1px solid #E5E7EB;
+        padding: 14px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 999;
+    }
+
+    .top-bar .title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #165DFF;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .top-bar .title span {
+        color: #6B7680;
+        font-size: 14px;
+        font-weight: 400;
+    }
+
+    .top-buttons {
+        display: flex;
+        gap: 10px;
+    }
+
+    .btn {
+        padding: 8px 14px;
+        border-radius: 10px;
+        border: none;
+        font-size: 14px;
+        cursor: pointer;
+        transition: 0.2s;
+        background: #F3F4F6;
+        color: #374151;
+    }
+
+    .btn:hover {
+        background: #E5E7EB;
+    }
+    
+    /* 新增：不满意按钮样式 */
+    .btn-unsatisfied {
+        background: #FEE2E2;
+        color: #DC2626;
+    }
+    .btn-unsatisfied:hover {
+        background: #FECACA;
+    }
+
+    /* 中间聊天区域（全屏主体） */
+    .container {
+        width: 100%;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px 16px 100px;
+        position: relative;
+        z-index: 1;
+    }
+
+    /* 聊天框 */
+    .chat-box {
+        background: white;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .chat-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid #F3F4F6;
+        font-weight: 500;
+        color: #111827;
+        font-size: 16px;
+    }
+
+    .messages {
+        flex: 1;
+        min-height: 600px;
+        max-height: 800px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        overflow-y: auto;
+    }
+
+    /* 消息气泡 */
+    .msg {
+        max-width: 80%;
+        padding: 12px 16px;
+        border-radius: 18px;
+        font-size: 15px;
+        line-height: 1.5;
+        animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg.bot {
+        align-self: flex-start;
+        background: #F3F4F6;
+        color: #111827;
+        border-bottom-left-radius: 6px;
+    }
+
+    .msg.user {
+        align-self: flex-end;
+        background: #165DFF;
+        color: white;
+        border-bottom-right-radius: 6px;
+    }
+
+    /* 输入框固定底部 */
+    .input-bar {
+        position: fixed;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 100%;
+        max-width: 800px;
+        display: flex;
+        gap: 10px;
+        padding: 16px 20px;
+        background: white;
+        border-top: 1px solid #E5E7EB;
+        align-items: center;
+        z-index: 998;
+    }
+
+    .input-bar input {
+        flex: 1;
+        padding: 12px 18px;
+        border-radius: 24px;
+        border: 1px solid #D1D5DB;
+        font-size: 15px;
+        outline: none;
+        background: #F9FAFB;
+    }
+
+    .input-bar input:focus {
+        border-color: #165DFF;
+        background: white;
+    }
+
+    .icon-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+
+    .btn-voice {
+        background: #F3F4F6;
+    }
+
+    .btn-voice:hover {
+        background: #E5E7EB;
+    }
+
+    .btn-voice.recording {
+        background: #EF4444;
+        color: white;
+    }
+
+    .btn-send {
+        background: #165DFF;
+        color: white;
+    }
+
+    .btn-send:hover {
+        background: #0E42C2;
+    }
+
+    /* 新增：弹窗样式 */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+    }
+    .modal-overlay.active {
+        display: flex;
+    }
+    .modal-box {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        max-width: 420px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .modal-box h3 {
+        margin-bottom: 12px;
+        color: #111827;
+    }
+    .modal-box textarea {
+        width: 100%;
+        height: 80px;
+        padding: 10px;
+        border: 1px solid #D1D5DB;
+        border-radius: 8px;
+        font-size: 14px;
+        resize: vertical;
+        font-family: inherit;
+    }
+    .modal-box .modal-btns {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
+        justify-content: flex-end;
+    }
+    .modal-box .modal-btns button {
+        padding: 8px 20px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    .modal-box .modal-btns .btn-cancel {
+        background: #F3F4F6;
+        color: #374151;
+    }
+    .modal-box .modal-btns .btn-submit {
+        background: #DC2626;
+        color: white;
+    }
+    .modal-box .modal-btns .btn-submit:hover {
+        background: #B91C1C;
+    }
+</style>
+</head>
+
+<body>
+
+<!-- 数字人背景（无框、无背景、纯挂在左侧） -->
+<div class="avatar-bg">
+    <svg id="avatarSvg" width="220" height="310" viewBox="0 0 220 320">
+        <defs><radialGradient id="gg" cx="50%" cy="40%"><stop offset="0%" stop-color="#ffd700" stop-opacity="0.2"/><stop offset="100%" stop-color="#667eea" stop-opacity="0"/></radialGradient></defs>
+        <circle cx="110" cy="120" r="100" fill="url(#gg)"/>
+        <g id="bodyGroup">
+            <rect x="65" y="195" width="90" height="80" rx="20" fill="#667eea"/>
+            <ellipse cx="110" cy="270" rx="55" ry="45" fill="#667eea"/>
+            <path d="M110 190 L100 210 L110 235 L120 210 Z" fill="#FFD700"/>
+            <rect x="80" y="222" width="60" height="16" rx="4" fill="#FFD700"/>
+            <text x="110" y="234" text-anchor="middle" font-size="8" fill="#4a3728" font-weight="bold">导游·小灵</text>
+        </g>
+        <g id="leftHand"><circle cx="52" cy="230" r="18" fill="#FFE4C4"/></g>
+        <g id="rightHand"><circle cx="168" cy="230" r="18" fill="#FFE4C4"/></g>
+        <g id="headGroup">
+            <circle cx="110" cy="110" r="72" fill="#FFE4C4"/>
+            <ellipse cx="110" cy="55" rx="82" ry="48" fill="#4a4a4a"/>
+            <path d="M38 60 Q52 98 72 78 Q88 108 100 72 Q115 102 130 78 Q148 98 182 60 Q170 28 110 22 Q50 28 38 60Z" fill="#4a4a4a"/>
+            <path id="ahoge" d="M110 22 Q115 -8 132 -12" stroke="#4a4a4a" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <ellipse cx="82" cy="88" rx="13" ry="4" fill="#5a4a4a"/>
+            <ellipse cx="138" cy="88" rx="13" ry="4" fill="#5a4a4a"/>
+            <ellipse cx="83" cy="104" rx="15" ry="18" fill="white"/>
+            <circle id="lPupil" cx="86" cy="105" r="9" fill="#1a1a2e"/>
+            <circle cx="90" cy="99" r="4.5" fill="white"/>
+            <circle cx="82" cy="109" r="2" fill="white"/>
+            <ellipse cx="137" cy="104" rx="15" ry="18" fill="white"/>
+            <circle id="rPupil" cx="140" cy="105" r="9" fill="#1a1a2e"/>
+            <circle cx="144" cy="99" r="4.5" fill="white"/>
+            <circle cx="136" cy="109" r="2" fill="white"/>
+            <ellipse cx="110" cy="125" rx="6" ry="5" fill="#F0C8A0"/>
+            <path id="svgMouth" d="M100 142 Q110 150 120 142" stroke="#d4786a" stroke-width="2.5" fill="#e8908a" stroke-linecap="round"/>
+            <ellipse cx="65" cy="118" rx="13" ry="7" fill="#FFB0B0" opacity=".3"/>
+            <ellipse cx="155" cy="118" rx="13" ry="7" fill="#FFB0B0" opacity=".3"/>
+        </g>
+    </svg>
+</div>
+
+<!-- 顶部导航 -->
+<div class="top-bar">
+    <div class="title">🏯 灵山胜境 <span>AI 智慧导游</span></div>
+    <div class="top-buttons">
+        <button class="btn" onclick="goRoute()">路线推荐</button>
+        <button class="btn" onclick="goAdmin()">数据后台</button>
+        <!-- 新增：不满意按钮 -->
+        <button class="btn btn-unsatisfied" onclick="openUnsatisfied()">👎 不满意</button>
+        <button class="btn" onclick="clearChat()">新对话</button>
+    </div>
+</div>
+
+<!-- 中间聊天主体（全屏） -->
+<div class="container">
+    <div class="chat-box">
+        <div class="chat-header">💬 与小灵对话</div>
+        <div class="messages" id="messages">
+            <div class="msg bot">✨ 嗨！我是小灵，你的专属AI导游～<br>灵山胜境的故事，让我讲给你听！</div>
+        </div>
+    </div>
+</div>
+
+<!-- 底部输入框 -->
+<div class="input-bar">
+    <input type="text" id="userInput" placeholder="输入问题，或按住麦克风语音对话～" onkeypress="if(event.key=='Enter')sendText()">
+    <button class="icon-btn btn-voice" id="voiceBtn">🎤</button>
+    <button class="icon-btn btn-send" onclick="sendText()">➤</button>
+</div>
+
+<!-- 新增：不满意弹窗 -->
+<div class="modal-overlay" id="unsatisfiedModal">
+    <div class="modal-box">
+        <h3>👎 告诉我们哪里不满意</h3>
+        <p style="font-size:14px;color:#6B7280;margin-bottom:10px;">您对刚才的哪次回答不满意？请说明原因，我们会改进。</p>
+        <textarea id="unsatisfiedReason" placeholder="请描述您不满意的原因..."></textarea>
+        <div class="modal-btns">
+            <button class="btn-cancel" onclick="closeUnsatisfied()">取消</button>
+            <button class="btn-submit" onclick="submitUnsatisfied()">提交反馈</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ========== 新增：会话ID管理 ==========
+let sessionId = sessionStorage.getItem('session_id');
+if (!sessionId) {
+    sessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+    sessionStorage.setItem('session_id', sessionId);
+}
+
+// ========== 新增：记录会话（打开窗口算一次） ==========
+async function recordVisit() {
+    try {
+        const res = await fetch('/api/stats/visit', {
+            method: 'POST',
+            headers: { 'X-Session-Id': sessionId }
+        });
+        const data = await res.json();
+        console.log('[统计] 会话记录成功，今日会话数:', data.today_sessions);
+    } catch (e) {
+        console.log('[统计] 会话记录失败:', e);
+    }
+}
+// 页面加载时记录会话
+recordVisit();
+
+// ========== 新增：记录问答（带日志） ==========
+async function recordQA(userQuery, aiAnswer, responseTime) {
+    try {
+        console.log('[统计] 开始记录问答:', userQuery.substring(0, 30) + (userQuery.length > 30 ? '...' : ''));
+        const res = await fetch('/api/stats/qa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                session_id: sessionId,
+                user_query: userQuery,
+                ai_answer: aiAnswer,
+                response_time: responseTime
+            })
+        });
+        const data = await res.json();
+        console.log('[统计] 问答记录结果:', data);
+    } catch (e) {
+        console.log('[统计] 问答记录失败:', e);
+    }
+}
+
+// ========== 新增：不满意弹窗逻辑 ==========
+let unsatisfiedUserQuery = '';
+
+function openUnsatisfied() {
+    // 获取最后一条用户消息作为上下文
+    const msgs = document.querySelectorAll('.msg.user');
+    if (msgs.length > 0) {
+        unsatisfiedUserQuery = msgs[msgs.length - 1].textContent;
+    } else {
+        unsatisfiedUserQuery = '';
+    }
+    document.getElementById('unsatisfiedReason').value = '';
+    document.getElementById('unsatisfiedModal').classList.add('active');
+}
+
+function closeUnsatisfied() {
+    document.getElementById('unsatisfiedModal').classList.remove('active');
+}
+
+async function submitUnsatisfied() {
+    const reason = document.getElementById('unsatisfiedReason').value.trim();
+    if (!reason) {
+        alert('请填写不满意的原因');
+        return;
+    }
+    try {
+        await fetch('/api/stats/unsatisfied', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                session_id: sessionId,
+                user_query: unsatisfiedUserQuery,
+                reason: reason
+            })
+        });
+        alert('✅ 感谢您的反馈，我们会持续改进！');
+        closeUnsatisfied();
+    } catch (e) {
+        alert('❌ 提交失败，请重试');
+    }
+}
+// 点击背景关闭弹窗
+document.getElementById('unsatisfiedModal').addEventListener('click', function(e) {
+    if (e.target === this) closeUnsatisfied();
+});
+
+// ========== 顶部按钮 ==========
+function goRoute() {
+    document.getElementById('userInput').value = "推荐一条灵山胜境游玩路线";
+    sendText();
+}
+function goAdmin() {
+    window.open('/admin', '_blank');
+}
+function clearChat() {
+    document.getElementById('messages').innerHTML = '<div class="msg bot">✨ 对话已重置～</div>';
+}
+
+// ========== 数字人动画、语音、嘴巴动 全部原样保留 ==========
+const headGroup=document.getElementById('headGroup');
+const lPupil=document.getElementById('lPupil');
+const rPupil=document.getElementById('rPupil');
+const svgMouth=document.getElementById('svgMouth');
+const rightHand=document.getElementById('rightHand');
+const ahoge=document.getElementById('ahoge');
+let mouthTimer, currentAudio=null;
+
+function startSpeak(){let o=true;mouthTimer=setInterval(()=>{svgMouth.setAttribute('d',o?'M97 140 Q110 154 123 140':'M100 142 Q110 148 120 142');o=!o},120)}
+function stopSpeak(){clearInterval(mouthTimer);svgMouth.setAttribute('d','M100 142 Q110 150 120 142')}
+function tilt(d){headGroup.style.transform='rotate('+d+'deg)';headGroup.style.transformOrigin='110px 110px'}
+function resetHead(){headGroup.style.transform='rotate(0deg)'}
+function look(d){const o=d==='l'?-4:4;lPupil.setAttribute('cx',86+o);rPupil.setAttribute('cx',140+o)}
+function resetEyes(){lPupil.setAttribute('cx',86);rPupil.setAttribute('cx',140)}
+function speakAnim(){startSpeak();tilt(-3);look('l');setTimeout(()=>{tilt(3);look('r')},800);setTimeout(()=>{tilt(-2);look('l')},1600);setTimeout(()=>{resetHead();resetEyes()},2400)}
+function stopAll(){if(currentAudio){currentAudio.pause();currentAudio=null}stopSpeak();resetHead();resetEyes()}
+
+// 消息
+function addMsg(t,u){const d=document.createElement('div');d.className='msg '+(u?'user':'bot');d.textContent=t;document.getElementById('messages').appendChild(d);document.getElementById('messages').scrollTop=document.getElementById('messages').scrollHeight}
+
+// ====================== 修改：sendText 增加问答记录 ======================
+async function sendText(){
+    const i=document.getElementById('userInput');
+    const t=i.value.trim();if(!t)return;
+    addMsg(t,true);i.value='';
+    stopAll();
+    const startTime = performance.now();
+    try{
+        const res=await fetch('/api/chat/tts',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({text:t})
+        });
+        const d=await res.json();
+        const endTime = performance.now();
+        const responseTime = (endTime - startTime) / 1000; // 秒
+        addMsg(d.answer,false);
+        // 新增：记录问答
+        await recordQA(t, d.answer, responseTime);
+        if(d.audio_url){
+            const a=new Audio(d.audio_url);
+            currentAudio=a;
+            speakAnim();
+            a.play();
+            a.onended=stopAll;
+        }
+    }catch(e){
+        console.log('[错误] sendText 失败:', e);
+        addMsg("服务连接异常",false);
+        stopAll();
+    }
+}
+
+// 语音功能完全不变
+let mr,chunks=[],recording=false;
+const voiceBtn=document.getElementById('voiceBtn');
+async function startRec(){
+    const s=await navigator.mediaDevices.getUserMedia({audio:true});
+    mr=new MediaRecorder(s,{mimeType:'audio/webm'});chunks=[];
+    mr.ondataavailable=e=>chunks.push(e.data);
+    mr.onstop=async()=>{
+        const startTime = performance.now();
+        const f=new FormData();f.append('file',new Blob(chunks),'voice.webm');
+        const r=await fetch('/api/chat/voice',{method:'POST',body:f});
+        const d=await r.json();
+        const endTime = performance.now();
+        const responseTime = (endTime - startTime) / 1000;
+        addMsg(d.user_text,true);
+        addMsg(d.reply_text,false);
+        // 新增：记录语音问答
+        await recordQA(d.user_text, d.reply_text, responseTime);
+        if(d.audio_url){
+            const a=new Audio(d.audio_url);currentAudio=a;speakAnim();a.play();a.onended=stopAll;
+        }
+    };
+    mr.start();voiceBtn.classList.add('recording');voiceBtn.textContent='🔴';
+}
+function stopRec(){if(mr)mr.stop();voiceBtn.classList.remove('recording');voiceBtn.textContent='🎤';}
+voiceBtn.onmousedown=startRec;
+voiceBtn.onmouseup=stopRec;
+voiceBtn.onmouseleave=stopRec;
+
+</script>
+</body>
+</html>

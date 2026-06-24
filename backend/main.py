@@ -585,6 +585,10 @@ async def export_data(format: str = "json"):
 async def get_feedbacks():
     return logger._read(logger.feedback_path)
 
+@app.get("/api/admin/wordcloud")
+async def word_cloud(top: int = 10):
+    return {"words": logger.get_word_cloud(top_n=top)}
+
 @app.get("/api/admin/stats/daily")
 async def daily_stats():
     logs = logger._read(logger.log_path)

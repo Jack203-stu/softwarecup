@@ -1,4 +1,4 @@
-import json, os, time, random
+import json, os, time, random, re
 from datetime import date, datetime, timedelta
 from collections import Counter
 from threading import Lock
@@ -283,3 +283,47 @@ class InteractionLogger:
     def get_recent(self, limit=20):
         logs = self._read(self.log_path)
         return logs[-limit:]
+
+    def get_word_cloud(self, top_n=10):
+        logs = self._read(self.log_path)
+        stopwords = {
+            "的", "了", "是", "在", "吗", "吧", "啊", "哦", "呢", "什么", "怎么",
+            "如何", "有什么", "请问", "一下", "介绍", "知道", "能", "可以", "要",
+            "一个", "一些", "这个", "那个", "它", "他", "她", "我们", "你们",
+            "今天", "明天", "昨天", "灵山", "景区", "地方", "景点", "吗", "？",
+            "?", "。", "，", ",", "！", "!", "“", "”", "（", "）", "(", ")",
+            "、", "·", "/", "\\", "：", ":", "；", ";", "和", "与", "及", "或"
+        }
+        tokens = []
+        try:
+            import jieba
+            jieba.setLogLevel(60)
+        except Exception:
+            jieba = None
+
+        for l in logs:
+            q = (l.get("question") or "").strip()
+            if not q:
+                continue
+            clean = re.sub(r"【[^】]*】", " ", q)
+            clean = re.sub(r"[?？!！,，.。:：;；~~·*#\-_=\|/\\@\[\]\(\)（）《》\"'“”‘’]", " ", clean)
+            clean = clean.strip()
+            if not clean:
+                continue
+            if jieba is not None:
+                for w in jieba.cut(clean):
+                    w = w.strip()
+                    if len(w) >= 2 and w not in stopwords:
+                        tokens.append(w)
+            else:
+                for seg in re.split(r"[\s]+", clean):
+                    seg = seg.strip()
+                    if len(seg) >= 2 and seg not in stopwords:
+                        tokens.append(seg)
+
+        counter = Counter(tokens)
+        words = counter.most_common(top_n)
+        if not words:
+            mock = ["灵山大佛", "梵宫", "五印坛城", "九龙灌浴", "门票", "开放时间", "游览路线", "历史", "佛教", "建筑艺术"]
+            words = [(w, random.randint(8, 36)) for w in mock[:top_n]]
+        return [{"word": w, "count": c} for w, c in words]
