@@ -19,8 +19,8 @@ def clean_text_for_tts(text):
     return re.sub(r'[#*`~\-]+', '', stripped)
 
 from datetime import date, timedelta
-import asyncio, io, csv, subprocess, re, time, hashlib
-import os, sys, uuid, shutil
+import asyncio, io, csv, subprocess, time, uuid, shutil, wave, struct
+import os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import FastAPI, UploadFile, File, Form
@@ -30,7 +30,7 @@ from fastapi.responses import Response, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 from core.rag_engine import RAGEngine
-from core.asr_tts import ASRService, TTSService
+from core.asr_tts import ASRService, TTSService, CACHE_DIR
 from core.logger import InteractionLogger
 
 app = FastAPI()
@@ -60,13 +60,13 @@ def get_preset_reply(text):
             return reply
     return None
 
-class FeedbackRequest(BaseModel):
-    rating: str
-
 class ChatRequest(BaseModel):
     text: str
     voice: str = None
     tags: list[str] | None = None
+
+class FeedbackRequest(BaseModel):
+    rating: str | int
 
 
 # ========== async helpers ==========
@@ -116,7 +116,6 @@ async def tts_synthesize_async(text, output_path, voice=None):
         tts._mem_cache[f"{text}_{actual_voice}"] = cache_file
     except Exception as e:
         print(f"TTS async fail: {e}, fallback silence")
-        import wave, struct
         with wave.open(output_path, 'w') as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)
@@ -407,9 +406,6 @@ async def admin():
         return f.read()
 
 
-class FeedbackRequest(BaseModel):
-    rating: str | int
-
 @app.post("/api/feedback")
 async def feedback(req: FeedbackRequest):
     rating = req.rating
@@ -420,8 +416,6 @@ async def feedback(req: FeedbackRequest):
     return {"status": "ok"}
 
 
-from fastapi import UploadFile
-import shutil
 import json
 
 AVATAR_DIR = os.path.join(BASE_DIR, "static", "avatars")
@@ -773,7 +767,7 @@ async def record_visit():
 @app.get("/health")
 async def health():
     return {"status": "ok", "uptime": time.time(), "rag_cache": rag.cache_hit_stats(),
-            "tts_cache_dir": CACHE_DIR if 'CACHE_DIR' in dir() else None}
+            "tts_cache_dir": CACHE_DIR}
 
 if __name__ == "__main__":
     import uvicorn
