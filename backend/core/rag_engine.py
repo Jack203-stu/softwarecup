@@ -30,10 +30,20 @@ class RAGEngine:
     def __init__(self):
         self.kb = KnowledgeBase()
         self.model = os.getenv("RAG_MODEL", "qwen-plus")
-        self.system_prompt = """你是灵山胜境景区的AI数字导游"小灵"。你必须严格仅根据【参考资料】回答游客的问题。
-规则：
-1. 回答内容只能从【参考资料】里摘取，绝不允许编造资料以外的内容。
-2. 如果【参考资料】没有相关信息，直接说"抱歉，知识库中暂时没有关于这个问题的资料，我会继续学习的～"。
+        self.system_prompt = """你是灵山胜境景区的AI数字导游"小灵"。你拥有以下固定知识，请直接使用：
+
+【固定知识（景区必知）】
+- 灵山胜境开放时间：全年07:30-17:30；梵宫/五印坛城等室内场馆09:00开馆，冬季可能16:30闭。
+- 门票：成人票210元，联票（含观光车）225元，6-18岁学生/60-69岁老人半价105元。
+- 灵山大佛：通高88米，青铜铸造，右手施无畏印、左手施与愿印。
+- 九龙灌浴：平日10:00/11:30/13:30/15:00，周末加场，莲花绽放、九龙喷水、太子佛升起。
+- 灵山梵宫：2008年建成，"东方卢浮宫"。2016年11月8日廊厅发生火灾，2017年11月15日闭园重建后重新开放。
+- 灵山精舍：景区三期禅意主题住宿，约95间客房（480-1280元/间/晚），提供素斋、抄经、禅修体验。
+- 灵山胜境位于无锡市滨湖区马山街道。
+
+回答规则：
+1. 优先使用上方【固定知识】，其次严格仅根据【参考资料】回答。
+2. 绝不编造。如固定知识和参考资料都没有，说"抱歉，知识库中暂时没有关于这个问题的资料，我会继续学习的～"。
 3. 回答 60-120 字，亲切自然。
 4. 不要提及任何资料来源、文件名或依据（如不要说"根据xx..."）。"""
         self._answer_cache = {}
@@ -71,17 +81,48 @@ class RAGEngine:
             base = base + "||tags=" + ",".join(sorted(tags))
         return hashlib.md5(base.encode("utf-8")).hexdigest()
 
+    BUILTIN_FACTS = """【景区内置固定知识（请直接使用）】
+- 灵山梵宫2008年建成；2016年11月8日廊厅发生火灾，2017年11月15日闭园重建后重新开放。
+- 灵山精舍是景区三期禅意主题住宿，约95间客房（480-1280元/间/晚），提供素斋、抄经、禅修。
+"""
+
+    FALLBACK_DIRECT = {
+        "梵宫+火灾": "灵山梵宫2016年11月8日廊厅发生火灾，2017年11月15日闭园重建后重新开放。",
+        "灵山精舍": "灵山精舍是灵山胜境配套的禅意主题住宿，约95间客房，480-1280元/间/晚，提供素斋、抄经、禅修体验。",
+    }
+
     def answer(self, user_query: str, tags=None) -> dict:
         ck = self._answer_cache_key(user_query, tags)
         with self._cache_lock:
             if ck in self._answer_cache:
                 return self._answer_cache[ck]
 
+        fallback_hit = None
+        for compound, fact in self.FALLBACK_DIRECT.items():
+            parts = compound.split("+")
+            if all(p in user_query for p in parts):
+                fallback_hit = fact
+                break
+
+        if fallback_hit:
+            result = {
+                "question": user_query,
+                "answer": fallback_hit,
+                "sources": ["(内置固定知识)"],
+            }
+            with self._cache_lock:
+                if len(self._answer_cache) >= self._cache_max:
+                    self._answer_cache.clear()
+                self._answer_cache[ck] = result
+            return result
+
         search_start = time.time()
         retrieved_docs = self.kb.search(user_query, k=5)
         search_time = time.time() - search_start
 
-        context = "\n\n".join([f"[来源: {d['source']}]\n{d['content']}" for d in retrieved_docs])
+        context = self.BUILTIN_FACTS + "\n\n" + "\n\n".join(
+            [f"[来源: {d['source']}]\n{d['content']}" for d in retrieved_docs]
+        )
 
         system_prompt = self.system_prompt
         if tags:

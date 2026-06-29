@@ -67,6 +67,22 @@
       "type": "live2d",
       "modelUrl": "/static/live2d/node_modules/live2d-widget-model-chitose/assets/chitose.model.json",
       "voice": "zh-CN-YunyangNeural"
+    },
+    {
+      "id": "5b2f82e4",
+      "name": "live2d-widget-model-izumi",
+      "type": "live2d",
+      "modelUrl": "/static/live2d/custom_models/a0468b7a6b404f3da915939c84890abe/live2d-widget-model-izumi/assets/izumi.model.json",
+      "voice": "zh-CN-XiaoxiaoNeural",
+      "custom": true
+    },
+    {
+      "id": "f731947a",
+      "name": "tsumiki",
+      "type": "live2d",
+      "modelUrl": "/static/live2d/custom_models/375336eebcdd4d5da4ae46cf8b2dd4b9/live2d-widget-model-tsumiki/assets/tsumiki.model.json",
+      "voice": "zh-CN-XiaoxiaoNeural",
+      "custom": true
     }
   ]
 }
